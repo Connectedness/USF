@@ -1,0 +1,19 @@
+<Solution>
+    <Folder Name="/SolutionItems/">
+        <File Path=".editorconfig" />
+        <File Path=".gitignore" />
+        <File Path="Directory.Build.props" />
+        <File Path="Directory.Packages.props" />
+        <File Path="global.json" />
+        <File Path="LICENSE" />
+        <File Path="USF.sln.DotSettings" />
+    </Folder>
+    <Folder Name="/src/">
+        <File Path="src\Directory.Build.props" />
+        <Project Path="src/Usf.Core/Usf.Core.csproj" />
+    </Folder>
+    <Folder Name="/tests/">
+        <File Path="tests\Directory.Build.props" />
+        <Project Path="tests/Usf.Core.Tests/Usf.Core.Tests.csproj" />
+    </Folder>
+</Solution>
