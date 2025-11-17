@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <PackageReference Include="Chaos.Mongo" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Usf.Core\Usf.Core.csproj" />
+  </ItemGroup>
+</Project>

@@ -11,6 +11,7 @@
     <Folder Name="/src/">
         <File Path="src\Directory.Build.props" />
         <Project Path="src/Usf.Core/Usf.Core.csproj" />
+        <Project Path="src/Usf.Persistence.MongoDb/Usf.Persistence.MongoDb.csproj" />
     </Folder>
     <Folder Name="/tests/">
         <File Path="tests\Directory.Build.props" />

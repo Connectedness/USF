@@ -5,5 +5,7 @@
 
   <ItemGroup>
     <PackageReference Include="IsExternalInit" PrivateAssets="all" />
+    <PackageReference Include="RequiredMemberAttribute" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
   </ItemGroup>
 </Project>
