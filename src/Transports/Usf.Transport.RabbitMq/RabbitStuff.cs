@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.DependencyInjection;
@@ -40,22 +41,54 @@ public class MessageReceiver : AsyncDefaultBasicConsumer
 
         await using var scope = _serviceProvider.CreateAsyncScope();
 
-        var consumerProvider = scope.ServiceProvider.GetRequiredService<IConsumerProvider>();
-        if (!consumerProvider.TryGetConsumerTypeForMessage(context, out var consumeType))
+        var consumerProvider = scope.ServiceProvider.GetRequiredService<IMessageHandlerTypeProvider>();
+
+        if (!consumerProvider.TryGetHandlerTypeForMessage(context, out var handlerContext)
         {
             await Channel.BasicRejectAsync(deliveryTag, false, cancellationToken);
             return;
         }
 
-        var consumer = (IMessageConsumer) scope.ServiceProvider.GetRequiredService(consumeType);
+        switch (messageHandlerType)
+        {
+            case MessageHandlerType.Request:
+                var methodInfo = typeof(MessageReceiver).GetMethod(
+                    nameof(HandleRequestAsync),
+                    BindingFlags.Instance | BindingFlags.NonPublic
+                )!;
+                await (Task) methodInfo
+                   .MakeGenericMethod(dtoType)
+                   .Invoke(this, [context, scope, cancellationToken]);
+                break;
+            case MessageHandlerType.Notification:
+                throw new NotImplementedException();
+        }
+    }
 
-        await consumer.ConsumeMessageAsync(context, cancellationToken);
-
-
-        // var deserializer = scope.ServiceProvider.GetRequiredService<IMessageDeserializer>();
-        // var message = deserializer.DeserializeMessage<IMessage>(body.Span);
+    private async Task HandleRequestAsync<TDto>(
+        MessageContext messageContext,
+        AsyncServiceScope scope,
+        CancellationToken cancellationToken
+    )
+    {
+        var serializer = scope.ServiceProvider.GetRequiredService<IMessageDeserializer>();
+        var dto = serializer.DeserializeMessage<TDto>(messageContext.Body.Span);
+        var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
+        try
+        {
+            var response = await mediator.Send(dto, cancellationToken);
+            // TODO: do something useful with the response -> e.g. publish a response message
+            await Channel.BasicAckAsync(messageContext.DeliveryTag, false, cancellationToken);
+        }
+        catch (Exception)
+        {
+            // TODO: log error
+            await Channel.BasicNackAsync(messageContext.DeliveryTag, false, true, cancellationToken);
+        }
     }
 }
+
+public record MessageResponse { }
 
 public record MessageContext
 {
@@ -73,9 +106,13 @@ public interface IMessageConsumer
     Task ConsumeMessageAsync(MessageContext messageContext, CancellationToken cancellationToken = default);
 }
 
-public interface IConsumerProvider
+public interface IMessageHandlerTypeProvider
 {
-    bool TryGetConsumerTypeForMessage(MessageContext messageContext, out Type consumerType);
+    bool TryGetHandlerTypeForMessage(
+        MessageContext messageContext,
+        out Type consumerType,
+        out MessageHandlerType messageHandlerType
+    );
 }
 
 public interface IMessageDeserializer

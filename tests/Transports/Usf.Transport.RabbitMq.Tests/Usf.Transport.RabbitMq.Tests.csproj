@@ -1,6 +1,10 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
-    <ProjectReference Include="..\..\src\Transports\Usf.Transport.RabbitMq\Usf.Transport.RabbitMq.csproj" />
+    <ProjectReference Include="..\..\..\src\Transports\Usf.Transport.RabbitMq\Usf.Transport.RabbitMq.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
   </ItemGroup>
 
   <ItemGroup>
