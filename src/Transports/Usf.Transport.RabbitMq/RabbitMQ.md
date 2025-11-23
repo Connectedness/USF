@@ -35,19 +35,20 @@ Generally:
 Publishing messages to RabbitMQ:
 
 * A custom publisher service containing an `IChannel` for publishing to exchanges/queues
-* Use a middleware pipeline to transform/enrich messages before publishing?
+* Use a middleware pipeline to transform/enrich messages before publishing
 * The publisher should always use `publisher confirms` to ensure messages are delivered;
   see [Reliable Publishing with Publisher Confirms](https://www.rabbitmq.com/tutorials/tutorial-seven-dotnet)
 
 Receiving messages from RabbitMQ:
 
 * Use a (custom) consumer to listen for messages with the `IChannel`
-* Use a middleware pipeline to transform/enrich messages before processing?
+* Use a middleware pipeline to transform/enrich messages and perform cross-cutting concerns before it hits the endpoint
 * The consumer must preprocess the message to determine its type and route it to the appropriate handler
-* For each message a DI scope is created and the handler is resolved from the scope
-* The handler is called to process the message
-* The handler can reject or nack the message using exceptions? ❓
+* For each message a DI scope is created and the middleware pipeline as well as the handler are resolved from the scope
+* The handler is called to process the message and receives a context
+* The handler can reject or nack the message using the context
+* A nack is performed when the handler throws an exceptions
 * The consumer actually acks, nacks, or rejects the message based on handler behavior. Processing the message without
   throwing an exception results in acknowledging the message
-
-
+* We want support for both Request (which provide a direct response DTO) as well as notifications (which simply return a
+  task)
