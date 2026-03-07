@@ -21,6 +21,10 @@ criterion.
 
 Read ./ai-plans/AGENTS.md for details on how to write plans.
 
+## Test Rules
+
+Read ./tests/AGENTS.md for details on how to write tests.
+
 ## Here is Your Space
 
 If you encounter something worth noting while you are working on this code base, write it down here in this section.
