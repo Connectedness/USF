@@ -4,16 +4,16 @@ USF needs a first message publishing slice that keeps the public programming mod
 
 ## Acceptance Criteria
 
-- [ ] `Usf.Core` contains the initial message publishing abstractions centered around `IMessagePublisher`, `IMessageTopology`, `ITargetRegistry`, `ITopologyProvisioner`, `Target`, `Target<T>`, `SerializedMessage`, `IMessageSerializer` with a generic `SerializeAsync<T>(T message, CancellationToken cancellationToken = default)` method, and dedicated exception types for missing targets, target/message mismatches, serialization failures, and topology validation failures.
-- [ ] The publish flow supports both explicit targets and topology-based resolution by exact message `Type`, rejects `null` messages, and uses dedicated exception types for missing targets, invalid target/message combinations, and serialization failures.
-- [ ] The runtime path for publishing struct messages uses the generic serializer and generic target APIs so message values do not need to be boxed during serialization and typed target execution.
-- [ ] Target instances encapsulate serialization and transport dispatch so `IMessagePublisher` remains unaware of transport-specific broker concepts.
-- [ ] `Usf.Transport.RabbitMq` provides RabbitMQ-specific targets plus topology definitions and provisioning for exchanges, queues, and bindings, including support for no declaration, passive declaration, and active declaration.
-- [ ] Applications can define the publishing topology in the composition root, including per-message target mappings, serializer selection, RabbitMQ entity definitions, and named target registration for explicit target retrieval.
-- [ ] Startup validation rejects duplicate message routes, named target collisions, missing serializers, invalid RabbitMQ entity references, and inconsistent declare configurations before the application can publish messages, and reports all discovered validation failures through `MessageTopologyValidationException` with a non-empty, deterministic `ValidationErrors` collection.
-- [ ] Observability includes activities for publish and topology provisioning plus metrics for publish attempts, publish failures, publish duration, topology provisioning attempts, topology provisioning failures, and topology provisioning duration, tagged with at least `message.type`, `target.name`, `transport.name`, and `outcome` where applicable, without recording serialized message bodies in telemetry.
-- [ ] An integration test verifies RabbitMQ publishing end-to-end by spinning up RabbitMQ with Testcontainers and asserting the expected message body, routing outcome, and at least one mapped metadata value such as a header or correlation identifier.
-- [ ] Automated tests are written.
+- [x] `Usf.Core` contains the initial message publishing abstractions centered around `IMessagePublisher`, `IMessageTopology`, `ITargetRegistry`, `ITopologyProvisioner`, `Target`, `Target<T>`, `SerializedMessage`, `IMessageSerializer` with a generic `SerializeAsync<T>(T message, CancellationToken cancellationToken = default)` method, and dedicated exception types for missing targets, target/message mismatches, serialization failures, and topology validation failures.
+- [x] The publish flow supports both explicit targets and topology-based resolution by exact message `Type`, rejects `null` messages, and uses dedicated exception types for missing targets, invalid target/message combinations, and serialization failures.
+- [x] The runtime path for publishing struct messages uses the generic serializer and generic target APIs so message values do not need to be boxed during serialization and typed target execution.
+- [x] Target instances encapsulate serialization and transport dispatch so `IMessagePublisher` remains unaware of transport-specific broker concepts.
+- [x] `Usf.Transport.RabbitMq` provides RabbitMQ-specific targets plus topology definitions and provisioning for exchanges, queues, and bindings, including support for no declaration, passive declaration, and active declaration.
+- [x] Applications can define the publishing topology in the composition root, including per-message target mappings, serializer selection, RabbitMQ entity definitions, and named target registration for explicit target retrieval.
+- [x] Startup validation rejects duplicate message routes, named target collisions, missing serializers, invalid RabbitMQ entity references, and inconsistent declare configurations before the application can publish messages, and reports all discovered validation failures through `MessageTopologyValidationException` with a non-empty, deterministic `ValidationErrors` collection.
+- [x] Observability includes activities for publish and topology provisioning plus metrics for publish attempts, publish failures, publish duration, topology provisioning attempts, topology provisioning failures, and topology provisioning duration, tagged with at least `message.type`, `target.name`, `transport.name`, and `outcome` where applicable, without recording serialized message bodies in telemetry.
+- [x] An integration test verifies RabbitMQ publishing end-to-end by spinning up RabbitMQ with Testcontainers and asserting the expected message body, routing outcome, and at least one mapped metadata value such as a header or correlation identifier.
+- [x] Automated tests are written.
 
 ## Technical Details
 

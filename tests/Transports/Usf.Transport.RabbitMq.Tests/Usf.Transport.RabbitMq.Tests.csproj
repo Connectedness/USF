@@ -1,10 +1,13 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
+    <ProjectReference Include="..\..\..\src\Usf.Core\Usf.Core.csproj" />
     <ProjectReference Include="..\..\..\src\Transports\Usf.Transport.RabbitMq\Usf.Transport.RabbitMq.csproj" />
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="Microsoft.Bcl.AsyncInterfaces" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
+    <PackageReference Include="Testcontainers.RabbitMq" />
   </ItemGroup>
 
   <ItemGroup>

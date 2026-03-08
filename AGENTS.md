@@ -29,3 +29,5 @@ Read ./tests/AGENTS.md for details on how to write tests.
 
 If you encounter something worth noting while you are working on this code base, write it down here in this section.
 Once you are finished, I will discuss it with you and we can decide where to put your notes.
+
+- With the current .NET 10 SDK and Microsoft Testing Platform setup, `dotnet test` fails in this repository; run the test projects via `dotnet run` from each test project directory instead.
