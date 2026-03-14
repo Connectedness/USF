@@ -11,15 +11,15 @@ namespace Usf.Transport.RabbitMq;
 
 internal sealed class RabbitMqTopologyProvisioner : ITopologyProvisioner
 {
-    private readonly RabbitMqPublishingConfiguration _configuration;
+    private readonly RabbitMqCompiledTopology _compiledTopology;
     private readonly RabbitMqConnectionManager _connectionManager;
 
     public RabbitMqTopologyProvisioner(
-        RabbitMqPublishingConfiguration configuration,
+        RabbitMqCompiledTopology compiledTopology,
         RabbitMqConnectionManager connectionManager
     )
     {
-        _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
+        _compiledTopology = compiledTopology ?? throw new ArgumentNullException(nameof(compiledTopology));
         _connectionManager = connectionManager ?? throw new ArgumentNullException(nameof(connectionManager));
     }
 
@@ -42,17 +42,17 @@ internal sealed class RabbitMqTopologyProvisioner : ITopologyProvisioner
             await using var channel = await connection.CreateChannelAsync(cancellationToken: cancellationToken)
                .ConfigureAwait(false);
 
-            foreach (var exchange in _configuration.Exchanges)
+            foreach (var exchange in _compiledTopology.Exchanges)
             {
                 await ProvisionExchangeAsync(channel, exchange, cancellationToken).ConfigureAwait(false);
             }
 
-            foreach (var queue in _configuration.Queues)
+            foreach (var queue in _compiledTopology.Queues)
             {
                 await ProvisionQueueAsync(channel, queue, cancellationToken).ConfigureAwait(false);
             }
 
-            foreach (var binding in _configuration.Bindings)
+            foreach (var binding in _compiledTopology.Bindings)
             {
                 await ProvisionBindingAsync(channel, binding, cancellationToken).ConfigureAwait(false);
             }
@@ -102,30 +102,45 @@ internal sealed class RabbitMqTopologyProvisioner : ITopologyProvisioner
     {
         var arguments = CreateMutableArguments(binding.Arguments);
 
-        return binding.DeclareMode switch
+        return binding switch
         {
-            RabbitMqDeclareMode.None => Task.CompletedTask,
-            RabbitMqDeclareMode.Passive => channel.QueueBindAsync(
-                binding.QueueName,
-                binding.ExchangeName,
-                binding.RoutingKey,
-                arguments,
-                false,
-                cancellationToken
-            ),
-            RabbitMqDeclareMode.Active => channel.QueueBindAsync(
-                binding.QueueName,
-                binding.ExchangeName,
-                binding.RoutingKey,
-                arguments,
-                false,
-                cancellationToken
-            ),
-            _ => throw new ArgumentOutOfRangeException(
+            RabbitMqQueueBindingDefinition queueBinding when queueBinding.DeclareMode == RabbitMqBindingDeclareMode.None
+                =>
+                Task.CompletedTask,
+            RabbitMqQueueBindingDefinition queueBinding when queueBinding.DeclareMode ==
+                                                             RabbitMqBindingDeclareMode.Ensure =>
+                channel.QueueBindAsync(
+                    queueBinding.QueueName,
+                    queueBinding.SourceExchangeName,
+                    queueBinding.RoutingKey,
+                    arguments,
+                    false,
+                    cancellationToken
+                ),
+            RabbitMqExchangeBindingDefinition exchangeBinding
+                when exchangeBinding.DeclareMode == RabbitMqBindingDeclareMode.None =>
+                Task.CompletedTask,
+            RabbitMqExchangeBindingDefinition exchangeBinding
+                when exchangeBinding.DeclareMode == RabbitMqBindingDeclareMode.Ensure =>
+                channel.ExchangeBindAsync(
+                    exchangeBinding.DestinationExchangeName,
+                    exchangeBinding.SourceExchangeName,
+                    exchangeBinding.RoutingKey,
+                    arguments!,
+                    false,
+                    cancellationToken
+                ),
+            RabbitMqQueueBindingDefinition queueBinding => throw new ArgumentOutOfRangeException(
                 nameof(binding),
-                binding.DeclareMode,
-                "Unsupported declare mode."
-            )
+                queueBinding.DeclareMode,
+                "Unsupported binding declare mode."
+            ),
+            RabbitMqExchangeBindingDefinition exchangeBinding => throw new ArgumentOutOfRangeException(
+                nameof(binding),
+                exchangeBinding.DeclareMode,
+                "Unsupported binding declare mode."
+            ),
+            _ => throw new ArgumentOutOfRangeException(nameof(binding), binding, "Unsupported binding type.")
         };
     }
 
@@ -141,7 +156,7 @@ internal sealed class RabbitMqTopologyProvisioner : ITopologyProvisioner
         {
             RabbitMqDeclareMode.None => Task.CompletedTask,
             RabbitMqDeclareMode.Passive => channel.ExchangeDeclarePassiveAsync(exchange.Name, cancellationToken),
-            RabbitMqDeclareMode.Active => channel.ExchangeDeclareAsync(
+            RabbitMqDeclareMode.Ensure => channel.ExchangeDeclareAsync(
                 exchange.Name,
                 exchange.Type,
                 exchange.Durable,
@@ -169,7 +184,7 @@ internal sealed class RabbitMqTopologyProvisioner : ITopologyProvisioner
         {
             RabbitMqDeclareMode.None => Task.CompletedTask,
             RabbitMqDeclareMode.Passive => channel.QueueDeclarePassiveAsync(queue.Name, cancellationToken),
-            RabbitMqDeclareMode.Active => channel.QueueDeclareAsync(
+            RabbitMqDeclareMode.Ensure => channel.QueueDeclareAsync(
                 queue.Name,
                 queue.Durable,
                 queue.Exclusive,

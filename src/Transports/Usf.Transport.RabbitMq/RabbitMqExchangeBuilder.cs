@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using RabbitMQ.Client;
 using Usf.Transport.RabbitMq.Configuration;
 
 namespace Usf.Transport.RabbitMq;
@@ -13,7 +14,7 @@ public sealed class RabbitMqExchangeBuilder
     {
         Name = RequireText(name, nameof(name));
         Type = RequireText(type, nameof(type));
-        DeclareMode = RabbitMqDeclareMode.Active;
+        DeclareMode = RabbitMqDeclareMode.Ensure;
         Durable = true;
     }
 
@@ -48,6 +49,18 @@ public sealed class RabbitMqExchangeBuilder
     public RabbitMqExchangeBuilder WithArgument(string name, object? value)
     {
         _arguments[RequireText(name, nameof(name))] = value;
+        return this;
+    }
+
+    public RabbitMqExchangeBuilder WithAlternateExchange(string exchangeName)
+    {
+        _arguments["alternate-exchange"] = RequireText(exchangeName, nameof(exchangeName));
+        return this;
+    }
+
+    public RabbitMqExchangeBuilder AsDelayedMessageExchange(string delayedExchangeType = ExchangeType.Direct)
+    {
+        _arguments["x-delayed-type"] = RequireText(delayedExchangeType, nameof(delayedExchangeType));
         return this;
     }
 

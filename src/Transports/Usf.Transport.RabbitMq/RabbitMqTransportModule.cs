@@ -28,14 +28,17 @@ public static class RabbitMqTransportModule
 
         services.AddSingleton(configuration);
         services.AddSingleton<RabbitMqConnectionManager>();
-        services.AddSingleton<IMessageTopology>(
+        services.AddSingleton<RabbitMqCompiledTopology>(
             static serviceProvider => RabbitMqMessageTopologyCompiler.Compile(serviceProvider)
         );
-        services.AddSingleton(
-            static serviceProvider => (MessageTopology) serviceProvider.GetRequiredService<IMessageTopology>()
+        services.AddSingleton<IMessageTopology>(
+            static serviceProvider => serviceProvider.GetRequiredService<RabbitMqCompiledTopology>().MessageTopology
+        );
+        services.AddSingleton<MessageTopology>(
+            static serviceProvider => serviceProvider.GetRequiredService<RabbitMqCompiledTopology>().MessageTopology
         );
         services.AddSingleton<ITargetRegistry>(
-            static serviceProvider => serviceProvider.GetRequiredService<MessageTopology>()
+            static serviceProvider => serviceProvider.GetRequiredService<RabbitMqCompiledTopology>().MessageTopology
         );
         services.AddSingleton<IMessagePublisher, MessagePublisher>();
         services.AddSingleton<ITopologyProvisioner, RabbitMqTopologyProvisioner>();

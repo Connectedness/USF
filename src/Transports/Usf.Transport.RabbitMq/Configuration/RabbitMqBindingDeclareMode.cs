@@ -1,8 +1,7 @@
 namespace Usf.Transport.RabbitMq.Configuration;
 
-public enum RabbitMqDeclareMode
+public enum RabbitMqBindingDeclareMode
 {
     None = 0,
-    Passive = 1,
-    Ensure = 2
+    Ensure = 1
 }

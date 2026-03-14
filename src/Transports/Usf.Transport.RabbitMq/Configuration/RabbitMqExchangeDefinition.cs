@@ -1,7 +1,6 @@
 using System.Collections.Generic;
-using Usf.Transport.RabbitMq.Configuration;
 
-namespace Usf.Transport.RabbitMq;
+namespace Usf.Transport.RabbitMq.Configuration;
 
 public sealed record RabbitMqExchangeDefinition(
     string Name,

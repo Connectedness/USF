@@ -54,20 +54,49 @@ public sealed class RabbitMqMessagePublishingBuilder
         return this;
     }
 
-    public RabbitMqMessagePublishingBuilder Binding(
+    public RabbitMqMessagePublishingBuilder QueueBinding(
         string exchangeName,
         string queueName,
         string routingKey = "",
-        Action<RabbitMqBindingBuilder>? configure = null
+        Action<RabbitMqQueueBindingBuilder>? configure = null
     )
     {
-        RabbitMqBindingBuilder builder = new (exchangeName, queueName, routingKey);
+        RabbitMqQueueBindingBuilder builder = new (exchangeName, queueName, routingKey);
+        configure?.Invoke(builder);
+        _bindingDefinitions.Add(builder.Build());
+        return this;
+    }
+
+    public RabbitMqMessagePublishingBuilder ExchangeBinding(
+        string sourceExchangeName,
+        string destinationExchangeName,
+        string routingKey = "",
+        Action<RabbitMqExchangeBindingBuilder>? configure = null
+    )
+    {
+        RabbitMqExchangeBindingBuilder builder = new (sourceExchangeName, destinationExchangeName, routingKey);
         configure?.Invoke(builder);
         _bindingDefinitions.Add(builder.Build());
         return this;
     }
 
     public RabbitMqMessagePublishingBuilder Publish<TMessage>(Action<RabbitMqPublishRouteBuilder<TMessage>> configure)
+    {
+        return PublishCore(null, configure);
+    }
+
+    public RabbitMqMessagePublishingBuilder PublishNamed<TMessage>(
+        string targetName,
+        Action<RabbitMqPublishRouteBuilder<TMessage>> configure
+    )
+    {
+        return PublishCore(RequireText(targetName, nameof(targetName)), configure);
+    }
+
+    private RabbitMqMessagePublishingBuilder PublishCore<TMessage>(
+        string? targetName,
+        Action<RabbitMqPublishRouteBuilder<TMessage>> configure
+    )
     {
         if (configure is null)
         {
@@ -76,7 +105,7 @@ public sealed class RabbitMqMessagePublishingBuilder
 
         RabbitMqPublishRouteBuilder<TMessage> builder = new ();
         configure(builder);
-        _routes.Add(builder.Build());
+        _routes.Add(builder.Build(targetName));
         return this;
     }
 
@@ -89,5 +118,15 @@ public sealed class RabbitMqMessagePublishingBuilder
             _bindingDefinitions.AsReadOnly(),
             _routes.AsReadOnly()
         );
+    }
+
+    private static string RequireText(string value, string parameterName)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            throw new ArgumentException("The value cannot be null or whitespace.", parameterName);
+        }
+
+        return value;
     }
 }
