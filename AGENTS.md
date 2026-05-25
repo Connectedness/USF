@@ -11,7 +11,7 @@ Plans typically have acceptance criteria with check boxes. Check each box when y
 - Implicit usings or global usings are not allowed - use explicit using statements for clarity.
 - The library is not published in a stable version yet, you can make breaking changes.
 - `<TreatWarningsAsErrors>` is enabled in Release builds, so your code changes must not generate warnings.
-- Prefer `public` over `internal` when designing types. Users of the library should have access to the same tools that 
+- Prefer `public` over `internal` when designing types. Users of the library should have access to the same APIs as we do.
 
 ## Plan Rules
 
