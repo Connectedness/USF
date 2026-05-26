@@ -3,7 +3,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Usf.Core.Messaging;
 
-namespace Usf.Core.Tests.TestSupport;
+namespace Usf.Core.Tests.Messaging.TestSupport;
 
 public sealed class RecordingTarget<TMessage> : Target<TMessage>
 {

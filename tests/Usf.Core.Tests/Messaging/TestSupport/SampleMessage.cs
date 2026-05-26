@@ -1,3 +1,3 @@
-namespace Usf.Core.Tests.TestSupport;
+namespace Usf.Core.Tests.Messaging.TestSupport;
 
 public sealed record SampleMessage(string Value);

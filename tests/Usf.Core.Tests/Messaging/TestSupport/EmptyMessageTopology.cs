@@ -2,7 +2,7 @@ using System;
 using Usf.Core.Messaging;
 using Usf.Core.Messaging.Errors;
 
-namespace Usf.Core.Tests.TestSupport;
+namespace Usf.Core.Tests.Messaging.TestSupport;
 
 public sealed class EmptyMessageTopology : IMessageTopology
 {

@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using FluentAssertions;
 using Usf.Core.Messaging;
-using Usf.Core.Tests.TestSupport;
+using Usf.Core.Tests.Messaging.TestSupport;
 using Xunit;
 
 namespace Usf.Core.Tests.Topology;

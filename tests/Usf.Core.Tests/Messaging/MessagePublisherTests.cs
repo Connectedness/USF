@@ -5,7 +5,7 @@ using System.Threading.Tasks;
 using FluentAssertions;
 using Usf.Core.Messaging;
 using Usf.Core.Messaging.Errors;
-using Usf.Core.Tests.TestSupport;
+using Usf.Core.Tests.Messaging.TestSupport;
 using Xunit;
 
 namespace Usf.Core.Tests.Messaging;
