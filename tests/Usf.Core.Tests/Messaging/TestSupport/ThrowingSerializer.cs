@@ -14,8 +14,8 @@ public sealed class ThrowingSerializer : IMessageSerializer
         _exception = exception;
     }
 
-    public Task<SerializedMessage> SerializeAsync<T>(T message, CancellationToken cancellationToken = default)
+    public ValueTask<SerializedMessage> SerializeAsync<T>(T message, CancellationToken cancellationToken = default)
     {
-        return Task.FromException<SerializedMessage>(_exception);
+        throw _exception;
     }
 }

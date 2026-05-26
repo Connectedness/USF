@@ -16,9 +16,9 @@ public sealed class RecordingSerializer : IMessageSerializer
 
     public List<object> Messages { get; } = [];
 
-    public Task<SerializedMessage> SerializeAsync<T>(T message, CancellationToken cancellationToken = default)
+    public ValueTask<SerializedMessage> SerializeAsync<T>(T message, CancellationToken cancellationToken = default)
     {
         Messages.Add(message!);
-        return Task.FromResult(_serializedMessage);
+        return new ValueTask<SerializedMessage>(_serializedMessage);
     }
 }

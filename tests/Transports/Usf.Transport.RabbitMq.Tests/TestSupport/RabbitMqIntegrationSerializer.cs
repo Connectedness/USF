@@ -11,7 +11,7 @@ namespace Usf.Transport.RabbitMq.Tests.TestSupport;
 
 public sealed class RabbitMqIntegrationSerializer : IMessageSerializer
 {
-    public Task<SerializedMessage> SerializeAsync<T>(T message, CancellationToken cancellationToken = default)
+    public ValueTask<SerializedMessage> SerializeAsync<T>(T message, CancellationToken cancellationToken = default)
     {
         var typedMessage = message.Should().BeOfType<RabbitMqPublishMessage>().Subject;
         var serializedMessage = new SerializedMessage(
@@ -27,6 +27,6 @@ public sealed class RabbitMqIntegrationSerializer : IMessageSerializer
             $"msg-{typedMessage.Id}",
             $"corr-{typedMessage.Id}"
         );
-        return Task.FromResult(serializedMessage);
+        return new ValueTask<SerializedMessage>(serializedMessage);
     }
 }
