@@ -109,7 +109,7 @@ public sealed class RabbitMqMessagePublishingBuilder
         return this;
     }
 
-    internal RabbitMqPublishingConfiguration Build()
+    public RabbitMqPublishingConfiguration Build()
     {
         return new RabbitMqPublishingConfiguration(
             _connectionFactoryFactory,

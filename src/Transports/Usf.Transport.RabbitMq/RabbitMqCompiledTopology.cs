@@ -5,7 +5,7 @@ using Usf.Transport.RabbitMq.Configuration;
 
 namespace Usf.Transport.RabbitMq;
 
-internal sealed class RabbitMqCompiledTopology
+public sealed class RabbitMqCompiledTopology
 {
     public RabbitMqCompiledTopology(
         MessageTopology messageTopology,

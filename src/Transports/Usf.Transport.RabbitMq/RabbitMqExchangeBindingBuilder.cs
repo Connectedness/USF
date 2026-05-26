@@ -41,7 +41,7 @@ public sealed class RabbitMqExchangeBindingBuilder
         return this;
     }
 
-    internal RabbitMqExchangeBindingDefinition Build()
+    public RabbitMqExchangeBindingDefinition Build()
     {
         return new RabbitMqExchangeBindingDefinition(
             SourceExchangeName,

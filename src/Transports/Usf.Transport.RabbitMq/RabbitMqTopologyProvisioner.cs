@@ -9,7 +9,7 @@ using Usf.Transport.RabbitMq.Configuration;
 
 namespace Usf.Transport.RabbitMq;
 
-internal sealed class RabbitMqTopologyProvisioner : ITopologyProvisioner
+public sealed class RabbitMqTopologyProvisioner : ITopologyProvisioner
 {
     private readonly RabbitMqCompiledTopology _compiledTopology;
     private readonly RabbitMqConnectionManager _connectionManager;

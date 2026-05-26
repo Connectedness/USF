@@ -120,7 +120,7 @@ public sealed class RabbitMqQueueBuilder
         return this;
     }
 
-    internal RabbitMqQueueDefinition Build()
+    public RabbitMqQueueDefinition Build()
     {
         return new RabbitMqQueueDefinition(
             Name,

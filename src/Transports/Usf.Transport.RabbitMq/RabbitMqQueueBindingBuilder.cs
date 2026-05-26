@@ -37,7 +37,7 @@ public sealed class RabbitMqQueueBindingBuilder
         return this;
     }
 
-    internal RabbitMqQueueBindingDefinition Build()
+    public RabbitMqQueueBindingDefinition Build()
     {
         return new RabbitMqQueueBindingDefinition(
             SourceExchangeName,

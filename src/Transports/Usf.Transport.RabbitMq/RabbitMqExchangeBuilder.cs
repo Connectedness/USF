@@ -64,7 +64,7 @@ public sealed class RabbitMqExchangeBuilder
         return this;
     }
 
-    internal RabbitMqExchangeDefinition Build()
+    public RabbitMqExchangeDefinition Build()
     {
         return new RabbitMqExchangeDefinition(
             Name,

@@ -3,7 +3,7 @@ using System.Collections.Generic;
 
 namespace Usf.Transport.RabbitMq;
 
-internal abstract record RabbitMqPublishRouteConfiguration(
+public abstract record RabbitMqPublishRouteConfiguration(
     Type MessageType,
     string ExchangeName,
     string? TargetName,
@@ -11,7 +11,7 @@ internal abstract record RabbitMqPublishRouteConfiguration(
     bool IsMandatory
 );
 
-internal sealed record RabbitMqFanoutPublishRouteConfiguration(
+public sealed record RabbitMqFanoutPublishRouteConfiguration(
     Type MessageType,
     string ExchangeName,
     string? TargetName,
@@ -19,7 +19,7 @@ internal sealed record RabbitMqFanoutPublishRouteConfiguration(
     bool IsMandatory
 ) : RabbitMqPublishRouteConfiguration(MessageType, ExchangeName, TargetName, SerializerType, IsMandatory);
 
-internal abstract record RabbitMqRoutingKeyPublishRouteConfiguration(
+public abstract record RabbitMqRoutingKeyPublishRouteConfiguration(
     Type MessageType,
     string ExchangeName,
     string? TargetName,
@@ -29,7 +29,7 @@ internal abstract record RabbitMqRoutingKeyPublishRouteConfiguration(
     Delegate? RoutingKeyFactory
 ) : RabbitMqPublishRouteConfiguration(MessageType, ExchangeName, TargetName, SerializerType, IsMandatory);
 
-internal sealed record RabbitMqDirectPublishRouteConfiguration(
+public sealed record RabbitMqDirectPublishRouteConfiguration(
     Type MessageType,
     string ExchangeName,
     string? TargetName,
@@ -47,7 +47,7 @@ internal sealed record RabbitMqDirectPublishRouteConfiguration(
     RoutingKeyFactory
 );
 
-internal sealed record RabbitMqTopicPublishRouteConfiguration(
+public sealed record RabbitMqTopicPublishRouteConfiguration(
     Type MessageType,
     string ExchangeName,
     string? TargetName,
@@ -65,7 +65,7 @@ internal sealed record RabbitMqTopicPublishRouteConfiguration(
     RoutingKeyFactory
 );
 
-internal sealed record RabbitMqHeadersPublishRouteConfiguration(
+public sealed record RabbitMqHeadersPublishRouteConfiguration(
     Type MessageType,
     string ExchangeName,
     string? TargetName,

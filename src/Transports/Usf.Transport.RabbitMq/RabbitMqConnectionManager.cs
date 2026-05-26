@@ -6,7 +6,7 @@ using Usf.Core.Messaging.Errors;
 
 namespace Usf.Transport.RabbitMq;
 
-internal sealed class RabbitMqConnectionManager : IAsyncDisposable, IDisposable
+public sealed class RabbitMqConnectionManager : IAsyncDisposable, IDisposable
 {
     private readonly Func<IServiceProvider, ConnectionFactory> _connectionFactoryFactory;
     private readonly SemaphoreSlim _gate = new (1, 1);

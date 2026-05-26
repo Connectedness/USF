@@ -10,7 +10,7 @@ using Usf.Transport.RabbitMq.Configuration;
 
 namespace Usf.Transport.RabbitMq;
 
-internal static class RabbitMqMessageTopologyCompiler
+public static class RabbitMqMessageTopologyCompiler
 {
     private static readonly MethodInfo CreateTargetMethod = typeof(RabbitMqMessageTopologyCompiler)
        .GetMethod(nameof(CreateTargetCore), BindingFlags.Static | BindingFlags.NonPublic)!;

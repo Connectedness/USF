@@ -7,7 +7,7 @@ using Usf.Core.Messaging;
 
 namespace Usf.Transport.RabbitMq;
 
-internal abstract class RabbitMqTarget<TMessage> : Target<TMessage>
+public abstract class RabbitMqTarget<TMessage> : Target<TMessage>
 {
     private readonly RabbitMqConnectionManager _connectionManager;
     private readonly string _exchangeName;
@@ -102,7 +102,7 @@ internal abstract class RabbitMqTarget<TMessage> : Target<TMessage>
     }
 }
 
-internal sealed class RabbitMqFanoutTarget<TMessage> : RabbitMqTarget<TMessage>
+public sealed class RabbitMqFanoutTarget<TMessage> : RabbitMqTarget<TMessage>
 {
     public RabbitMqFanoutTarget(
         string name,
@@ -114,7 +114,7 @@ internal sealed class RabbitMqFanoutTarget<TMessage> : RabbitMqTarget<TMessage>
         : base(name, serializer, connectionManager, exchangeName, isMandatory) { }
 }
 
-internal abstract class RabbitMqRoutingKeyTarget<TMessage> : RabbitMqTarget<TMessage>
+public abstract class RabbitMqRoutingKeyTarget<TMessage> : RabbitMqTarget<TMessage>
 {
     private readonly Func<TMessage, string> _routingKeyFactory;
 
@@ -138,7 +138,7 @@ internal abstract class RabbitMqRoutingKeyTarget<TMessage> : RabbitMqTarget<TMes
     }
 }
 
-internal sealed class RabbitMqDirectTarget<TMessage> : RabbitMqRoutingKeyTarget<TMessage>
+public sealed class RabbitMqDirectTarget<TMessage> : RabbitMqRoutingKeyTarget<TMessage>
 {
     public RabbitMqDirectTarget(
         string name,
@@ -151,7 +151,7 @@ internal sealed class RabbitMqDirectTarget<TMessage> : RabbitMqRoutingKeyTarget<
         : base(name, serializer, connectionManager, exchangeName, isMandatory, routingKeyFactory) { }
 }
 
-internal sealed class RabbitMqTopicTarget<TMessage> : RabbitMqRoutingKeyTarget<TMessage>
+public sealed class RabbitMqTopicTarget<TMessage> : RabbitMqRoutingKeyTarget<TMessage>
 {
     public RabbitMqTopicTarget(
         string name,
@@ -164,7 +164,7 @@ internal sealed class RabbitMqTopicTarget<TMessage> : RabbitMqRoutingKeyTarget<T
         : base(name, serializer, connectionManager, exchangeName, isMandatory, routingKeyFactory) { }
 }
 
-internal sealed class RabbitMqHeadersTarget<TMessage> : RabbitMqTarget<TMessage>
+public sealed class RabbitMqHeadersTarget<TMessage> : RabbitMqTarget<TMessage>
 {
     private readonly IReadOnlyDictionary<string, object?> _headers;
 

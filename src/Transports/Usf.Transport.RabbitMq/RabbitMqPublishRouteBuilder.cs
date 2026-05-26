@@ -157,7 +157,7 @@ public sealed class RabbitMqPublishRouteBuilder<TMessage>
     }
 }
 
-internal enum RabbitMqPublishRouteScenario
+public enum RabbitMqPublishRouteScenario
 {
     Fanout = 0,
     Direct = 1,
