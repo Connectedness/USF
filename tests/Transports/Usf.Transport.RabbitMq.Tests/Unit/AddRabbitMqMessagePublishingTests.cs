@@ -4,8 +4,8 @@ using Microsoft.Extensions.DependencyInjection;
 using RabbitMQ.Client;
 using Usf.Core.Messaging;
 using Usf.Core.Messaging.Errors;
+using Usf.Core.Messaging.Serialization;
 using Usf.Transport.RabbitMq.Configuration;
-using Usf.Transport.RabbitMq.Serialization;
 using Usf.Transport.RabbitMq.Tests.TestSupport;
 using Xunit;
 

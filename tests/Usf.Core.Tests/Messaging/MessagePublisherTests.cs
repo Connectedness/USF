@@ -1,10 +1,11 @@
 using System;
 using System.Collections.Generic;
-using System.Collections.ObjectModel;
+using System.Text;
 using System.Threading.Tasks;
 using FluentAssertions;
 using Usf.Core.Messaging;
 using Usf.Core.Messaging.Errors;
+using Usf.Core.Messaging.Serialization;
 using Usf.Core.Tests.Messaging.TestSupport;
 using Xunit;
 
@@ -16,17 +17,7 @@ public sealed class MessagePublisherTests
     public async Task PublishMessageAsync_UsesTopologyResolvedTarget_WhenNoExplicitTargetIsProvided()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
-        var serializer = new RecordingSerializer(
-            new SerializedMessage(
-                [1, 2, 3],
-                "application/octet-stream",
-                null,
-                new ReadOnlyDictionary<string, string?>(new Dictionary<string, string?>()),
-                null,
-                null
-            )
-        );
-        var target = new RecordingTarget<SampleMessage>("default", serializer);
+        var target = new RecordingTarget<SampleMessage>("default", new Utf8JsonMessageSerializer());
         var topology = new MessageTopology(
             new Dictionary<Type, Target>
             {
@@ -40,30 +31,29 @@ public sealed class MessagePublisherTests
         await publisher.PublishMessageAsync(message, cancellationToken: cancellationToken);
 
         target.Messages.Should().ContainSingle().Which.Should().Be(message);
-        serializer.Messages.Should().ContainSingle().Which.Should().Be(message);
+        var serializedMessage = target.SerializedMessages.Should().ContainSingle().Which;
+        Encoding.UTF8.GetString(serializedMessage.Body).Should().Be("{\"Value\":\"hello\"}");
+        serializedMessage.ContentType.Should().Be("application/json");
+        serializedMessage.ContentEncoding.Should().Be("utf-8");
+        serializedMessage.Headers.Should().BeEmpty();
+        serializedMessage.MessageId.Should().BeNull();
+        serializedMessage.CorrelationId.Should().BeNull();
     }
 
     [Fact]
     public async Task PublishMessageAsync_UsesExplicitTarget_WhenProvided()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
-        var serializer = new RecordingSerializer(
-            new SerializedMessage(
-                [9],
-                "application/octet-stream",
-                null,
-                new ReadOnlyDictionary<string, string?>(new Dictionary<string, string?>()),
-                null,
-                null
-            )
-        );
-        var explicitTarget = new RecordingTarget<SampleMessage>("explicit", serializer);
+        var explicitTarget = new RecordingTarget<SampleMessage>("explicit", new Utf8JsonMessageSerializer());
         var publisher = new MessagePublisher(new EmptyMessageTopology());
         var message = new SampleMessage("hello");
 
         await publisher.PublishMessageAsync(message, explicitTarget, cancellationToken);
 
         explicitTarget.Messages.Should().ContainSingle().Which.Should().Be(message);
+        Encoding.UTF8.GetString(explicitTarget.SerializedMessages.Should().ContainSingle().Which.Body)
+           .Should()
+           .Be("{\"Value\":\"hello\"}");
     }
 
     [Fact]
@@ -89,17 +79,7 @@ public sealed class MessagePublisherTests
     [Fact]
     public async Task PublishMessageAsync_ThrowsWhenExplicitTargetDoesNotMatchMessageType()
     {
-        var serializer = new RecordingSerializer(
-            new SerializedMessage(
-                [4],
-                null,
-                null,
-                new ReadOnlyDictionary<string, string?>(new Dictionary<string, string?>()),
-                null,
-                null
-            )
-        );
-        var target = new RecordingTarget<OtherMessage>("other", serializer);
+        var target = new RecordingTarget<OtherMessage>("other", new Utf8JsonMessageSerializer());
         var publisher = new MessagePublisher(new EmptyMessageTopology());
 
         var action = async () => await publisher.PublishMessageAsync(new SampleMessage("hello"), target);

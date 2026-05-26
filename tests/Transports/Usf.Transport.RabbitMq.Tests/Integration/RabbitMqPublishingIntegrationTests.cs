@@ -9,6 +9,7 @@ using Microsoft.Extensions.Hosting;
 using RabbitMQ.Client;
 using Testcontainers.RabbitMq;
 using Usf.Core.Messaging;
+using Usf.Core.Messaging.Serialization;
 using Usf.Transport.RabbitMq.Tests.TestSupport;
 using Xunit;
 
@@ -26,6 +27,7 @@ public sealed class RabbitMqPublishingIntegrationTests
         try
         {
             var services = new ServiceCollection();
+            services.AddSingleton<Utf8JsonMessageSerializer>();
             services.AddSingleton<RabbitMqIntegrationSerializer>();
             services.AddRabbitMqMessagePublishing(
                 builder =>

@@ -7,5 +7,6 @@
     <PackageReference Include="IsExternalInit" PrivateAssets="all" />
     <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" />
     <PackageReference Include="System.Diagnostics.DiagnosticSource" />
+    <PackageReference Include="System.Text.Json" />
   </ItemGroup>
 </Project>

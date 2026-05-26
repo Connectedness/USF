@@ -1,8 +1,8 @@
 using System;
 using System.Collections.Generic;
-using System.Collections.ObjectModel;
 using FluentAssertions;
 using Usf.Core.Messaging;
+using Usf.Core.Messaging.Serialization;
 using Usf.Core.Tests.Messaging.TestSupport;
 using Xunit;
 
@@ -13,17 +13,7 @@ public sealed class MessageTopologyTests
     [Fact]
     public void GetRequiredTarget_SupportsNamedTargetLookup()
     {
-        var serializer = new RecordingSerializer(
-            new SerializedMessage(
-                [5],
-                null,
-                null,
-                new ReadOnlyDictionary<string, string?>(new Dictionary<string, string?>()),
-                null,
-                null
-            )
-        );
-        var target = new RecordingTarget<SampleMessage>("named", serializer);
+        var target = new RecordingTarget<SampleMessage>("named", new Utf8JsonMessageSerializer());
         var topology = new MessageTopology(
             new Dictionary<Type, Target>
             {
