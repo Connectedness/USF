@@ -104,11 +104,9 @@ internal sealed class RabbitMqTopologyProvisioner : ITopologyProvisioner
 
         return binding switch
         {
-            RabbitMqQueueBindingDefinition queueBinding when queueBinding.DeclareMode == RabbitMqBindingDeclareMode.None
-                =>
+            RabbitMqQueueBindingDefinition { DeclareMode: RabbitMqBindingDeclareMode.None } =>
                 Task.CompletedTask,
-            RabbitMqQueueBindingDefinition queueBinding when queueBinding.DeclareMode ==
-                                                             RabbitMqBindingDeclareMode.Ensure =>
+            RabbitMqQueueBindingDefinition { DeclareMode: RabbitMqBindingDeclareMode.Ensure } queueBinding =>
                 channel.QueueBindAsync(
                     queueBinding.QueueName,
                     queueBinding.SourceExchangeName,
@@ -117,16 +115,14 @@ internal sealed class RabbitMqTopologyProvisioner : ITopologyProvisioner
                     false,
                     cancellationToken
                 ),
-            RabbitMqExchangeBindingDefinition exchangeBinding
-                when exchangeBinding.DeclareMode == RabbitMqBindingDeclareMode.None =>
+            RabbitMqExchangeBindingDefinition { DeclareMode: RabbitMqBindingDeclareMode.None } =>
                 Task.CompletedTask,
-            RabbitMqExchangeBindingDefinition exchangeBinding
-                when exchangeBinding.DeclareMode == RabbitMqBindingDeclareMode.Ensure =>
+            RabbitMqExchangeBindingDefinition { DeclareMode: RabbitMqBindingDeclareMode.Ensure } exchangeBinding =>
                 channel.ExchangeBindAsync(
                     exchangeBinding.DestinationExchangeName,
                     exchangeBinding.SourceExchangeName,
                     exchangeBinding.RoutingKey,
-                    arguments!,
+                    arguments,
                     false,
                     cancellationToken
                 ),
