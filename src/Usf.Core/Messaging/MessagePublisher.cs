@@ -62,11 +62,21 @@ public sealed class MessagePublisher : IMessagePublisher
             throw new ArgumentNullException(nameof(target));
         }
 
+        if (message.Body is null)
+        {
+            throw new ArgumentException("The serialized message must provide a body.", nameof(message));
+        }
+
+        if (message.Headers is null)
+        {
+            throw new ArgumentException("The serialized message must provide headers.", nameof(message));
+        }
+
         var messageTypeName = target.MessageType is null ?
             SerializedMessageTypeName :
             GetMessageTypeName(target.MessageType);
         await PublishWithDiagnosticsAsync(
-            "usf.outbound.publish.raw",
+            "usf.outbound.publish",
             messageTypeName,
             target,
             async () => await target.PublishSerializedAsync(message, cancellationToken).ConfigureAwait(false)

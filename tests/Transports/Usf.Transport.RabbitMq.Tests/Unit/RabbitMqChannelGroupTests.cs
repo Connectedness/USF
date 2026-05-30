@@ -245,6 +245,32 @@ public sealed class RabbitMqChannelGroupTests
     }
 
     [Fact]
+    public async Task RabbitMqConnectionProvider_RetriesAfterAFailedConnectionAttempt()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var connection = new TestRabbitMqConnection();
+        var attempt = 0;
+        await using var provider = new RabbitMqConnectionProvider(
+            _ =>
+            {
+                attempt++;
+                return attempt == 1 ?
+                    Task.FromException<IConnection>(new InvalidOperationException("broker not ready")) :
+                    Task.FromResult(connection.Object);
+            }
+        );
+
+        // ReSharper disable once AccessToDisposedClosure -- firstAttempt is called before disposal
+        var firstAttempt = async () => await provider.GetConnectionAsync(cancellationToken);
+        await firstAttempt.Should().ThrowAsync<InvalidOperationException>();
+
+        var resolved = await provider.GetConnectionAsync(cancellationToken);
+
+        resolved.Should().BeSameAs(connection.Object);
+        attempt.Should().Be(2);
+    }
+
+    [Fact]
     public async Task RabbitMqOutboundTopology_ThrowsWhenWorstCaseChannelCountExceedsBrokerLimit()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
@@ -315,9 +341,40 @@ public sealed class RabbitMqChannelGroupTests
         Action act = () => _ = RabbitMqOutboundTopologyCompiler.Compile(serviceProvider);
 
         var exception = act.Should().Throw<OutboundTopologyValidationException>().Which;
-        exception.ValidationErrors.Should().ContainSingle(
+        exception.ValidationErrors.Should().Contain(
             "Channel group 'invalid' maximum channel count must be greater than zero."
         );
+    }
+
+    [Fact]
+    public void RabbitMqOutboundTopologyCompiler_RejectsChannelGroupsThatNoTargetReferences()
+    {
+        var services = new ServiceCollection();
+        services.AddSingleton<Utf8JsonMessageSerializer>();
+        services.AddRabbitMqOutboundTopology(
+            builder =>
+            {
+                builder.UseConnectionFactory(static _ => new ConnectionFactory());
+                builder.Exchange("orders", ExchangeType.Fanout);
+                builder.Address("orders-address", "orders");
+                builder.ChannelGroup("referenced", 2);
+                builder.ChannelGroup("orphaned", 5);
+                builder.Publish<ValidationMessageA>(
+                    target => target
+                       .ToFanoutAddress("orders-address")
+                       .UseChannelGroup("referenced")
+                       .WithSerializer<Utf8JsonMessageSerializer>()
+                );
+            }
+        );
+        using var serviceProvider = services.BuildServiceProvider();
+
+        // ReSharper disable once AccessToDisposedClosure -- act is called before disposal
+        Action act = () => _ = RabbitMqOutboundTopologyCompiler.Compile(serviceProvider);
+
+        var exception = act.Should().Throw<OutboundTopologyValidationException>().Which;
+        exception.ValidationErrors.Should().ContainSingle()
+           .Which.Should().Be("Channel group 'orphaned' is configured but no outbound target references it.");
     }
 
     [Fact]

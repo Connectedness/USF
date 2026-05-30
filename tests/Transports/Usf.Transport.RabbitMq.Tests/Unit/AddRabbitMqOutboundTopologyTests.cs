@@ -57,6 +57,7 @@ public sealed class AddRabbitMqOutboundTopologyTests
         exception.ValidationErrors.Should().Equal(
             "A RabbitMQ connection factory must be configured.",
             "Address 'missing-address-exchange' references unknown exchange 'missing-address-exchange'.",
+            "Channel group 'shared' is configured but no outbound target references it.",
             "Duplicate address 'address-a' is configured.",
             "Duplicate channel group 'shared' is configured.",
             "Duplicate exchange 'exchange-a' is configured.",

@@ -284,6 +284,7 @@ public static class RabbitMqOutboundTopologyCompiler
         ValidateQueueDefinitions(configuration.Queues, validationErrors);
         ValidateAddressDefinitions(configuration.Addresses, exchangesByName, validationErrors);
         ValidateChannelGroupDefinitions(configuration.ChannelGroups, validationErrors);
+        ValidateChannelGroupUsage(configuration.ChannelGroups, configuration.Targets, validationErrors);
         ValidateTargets(
             serviceProvider,
             configuration.Targets,
@@ -364,6 +365,33 @@ public static class RabbitMqOutboundTopologyCompiler
             {
                 validationErrors.Add(
                     $"Channel group '{channelGroup.Name}' maximum channel count must be greater than zero."
+                );
+            }
+        }
+    }
+
+    private static void ValidateChannelGroupUsage(
+        IReadOnlyList<RabbitMqChannelGroupDefinition> channelGroups,
+        IReadOnlyList<RabbitMqOutboundTargetDefinition> targets,
+        ICollection<string> validationErrors
+    )
+    {
+        var referencedChannelGroups = new HashSet<string>(
+            targets
+               .Where(static target => !string.IsNullOrWhiteSpace(target.ChannelGroupName))
+               .Select(static target => target.ChannelGroupName!),
+            StringComparer.Ordinal
+        );
+
+        foreach (var channelGroupName in channelGroups
+                    .Select(static group => group.Name)
+                    .Distinct(StringComparer.Ordinal)
+                    .OrderBy(static name => name, StringComparer.Ordinal))
+        {
+            if (!referencedChannelGroups.Contains(channelGroupName))
+            {
+                validationErrors.Add(
+                    $"Channel group '{channelGroupName}' is configured but no outbound target references it."
                 );
             }
         }

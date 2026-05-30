@@ -80,6 +80,13 @@ public sealed class RabbitMqConnectionProvider : IAsyncDisposable, IDisposable
 
             return await _connectionTask.ConfigureAwait(false);
         }
+        catch
+        {
+            // A failed creation attempt must not poison the provider: clear the cached task so the
+            // next acquisition retries instead of replaying the same faulted task forever.
+            _connectionTask = null;
+            throw;
+        }
         finally
         {
             _gate.Release();

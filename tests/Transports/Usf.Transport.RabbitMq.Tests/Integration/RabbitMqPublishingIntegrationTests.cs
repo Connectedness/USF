@@ -185,7 +185,7 @@ public sealed class RabbitMqPublishingIntegrationTests
                .Be("{\"Id\":46,\"Name\":\"exchange\"}");
 
             headersMessage.BasicProperties.Should().NotBeNull();
-            headersMessage.BasicProperties!.Headers.Should().NotBeNull();
+            headersMessage.BasicProperties.Headers.Should().NotBeNull();
             ExtractHeaderValue(headersMessage.BasicProperties.Headers!, "tenant").Should().Be("tenant-headers");
             ExtractHeaderValue(headersMessage.BasicProperties.Headers!, "region").Should().Be("us");
 
@@ -201,6 +201,92 @@ public sealed class RabbitMqPublishingIntegrationTests
             targetRegistry.GetRequiredTarget("fanout-target").Should().NotBeNull();
             targetRegistry.GetRequiredTarget("headers-target").Should().NotBeNull();
             targetRegistry.GetRequiredTarget("exchange-binding-target").Should().NotBeNull();
+        }
+        finally
+        {
+            await container.DisposeAsync();
+        }
+    }
+
+    [Fact]
+    public async Task PublishRawAsync_PublishesCallerOwnedEnvelopeWithoutUsfSerialization()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var container = new RabbitMqBuilder("public.ecr.aws/docker/library/rabbitmq:3.13-management").Build();
+        await container.StartAsync(cancellationToken);
+
+        try
+        {
+            var services = new ServiceCollection();
+            services.AddSingleton<Utf8JsonMessageSerializer>();
+            services.AddRabbitMqOutboundTopology(
+                builder =>
+                {
+                    builder.UseConnectionFactory(
+                        _ => new ConnectionFactory
+                        {
+                            Uri = new Uri(container.GetConnectionString())
+                        }
+                    );
+
+                    builder.Exchange("raw-fanout", ExchangeType.Fanout);
+                    builder.Address("raw-address", "raw-fanout");
+                    builder.Queue("raw-queue");
+                    builder.QueueBinding("raw-fanout", "raw-queue");
+
+                    builder.Publish<RabbitMqPublishMessage>(
+                        route => route
+                           .ToFanoutAddress("raw-address")
+                           .WithSerializer<Utf8JsonMessageSerializer>()
+                    );
+                }
+            );
+
+            await using var serviceProvider = services.BuildServiceProvider();
+
+            foreach (var hostedService in serviceProvider.GetServices<IHostedService>())
+            {
+                await hostedService.StartAsync(cancellationToken);
+            }
+
+            var publisher = serviceProvider.GetRequiredService<IMessagePublisher>();
+            var target = serviceProvider
+               .GetRequiredService<IOutboundTopology>()
+               .GetRequiredTarget<RabbitMqPublishMessage>();
+
+            // A payload that is deliberately not the JSON the serializer would produce proving USF
+            // serialization is bypassed, and the envelope is owned entirely by the caller.
+            SerializedMessage rawMessage = new (
+                "raw-payload"u8.ToArray(),
+                "application/custom",
+                "utf-8",
+                new Dictionary<string, string?>(StringComparer.Ordinal)
+                {
+                    ["tenant"] = "tenant-7"
+                },
+                "message-id-7",
+                "correlation-id-7"
+            );
+
+            await publisher.PublishRawAsync(rawMessage, target, cancellationToken);
+
+            var connectionFactory = new ConnectionFactory
+            {
+                Uri = new Uri(container.GetConnectionString())
+            };
+            await using var connection = await connectionFactory.CreateConnectionAsync(cancellationToken);
+            await using var channel = await connection.CreateChannelAsync(cancellationToken: cancellationToken);
+
+            var received = await GetRequiredMessageAsync(channel, "raw-queue", cancellationToken);
+
+            Encoding.UTF8.GetString(received.Body.ToArray()).Should().Be("raw-payload");
+            received.BasicProperties.Should().NotBeNull();
+            received.BasicProperties.ContentType.Should().Be("application/custom");
+            received.BasicProperties.ContentEncoding.Should().Be("utf-8");
+            received.BasicProperties.MessageId.Should().Be("message-id-7");
+            received.BasicProperties.CorrelationId.Should().Be("correlation-id-7");
+            received.BasicProperties.Headers.Should().NotBeNull();
+            ExtractHeaderValue(received.BasicProperties.Headers!, "tenant").Should().Be("tenant-7");
         }
         finally
         {

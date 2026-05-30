@@ -113,4 +113,16 @@ public sealed class MessagePublisherTests
         target.Messages.Should().BeEmpty();
         target.SerializedMessages.Should().ContainSingle().Which.Should().Be(message);
     }
+
+    [Fact]
+    public async Task PublishRawAsync_RejectsMessagesWithoutABody()
+    {
+        var target = new RecordingTarget<SampleMessage>("raw", new Utf8JsonMessageSerializer());
+        var publisher = new MessagePublisher(new EmptyOutboundTopology());
+
+        var action = async () => await publisher.PublishRawAsync(default, target);
+
+        await action.Should().ThrowAsync<ArgumentException>().WithParameterName("message");
+        target.SerializedMessages.Should().BeEmpty();
+    }
 }
