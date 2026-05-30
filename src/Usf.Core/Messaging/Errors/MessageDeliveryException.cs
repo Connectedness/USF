@@ -9,7 +9,21 @@ public sealed class MessageDeliveryException : Exception
         MessageDeliveryFailureReason reason,
         Exception? innerException = null
     )
-        : base($"Delivery failed for outbound target '{targetName}' with reason '{reason}'.", innerException)
+        : base(CreateMessage(targetName, reason, innerException), innerException)
+    {
+        TargetName = targetName;
+        Reason = reason;
+    }
+
+    public string TargetName { get; }
+
+    public MessageDeliveryFailureReason Reason { get; }
+
+    private static string CreateMessage(
+        string targetName,
+        MessageDeliveryFailureReason reason,
+        Exception? innerException
+    )
     {
         if (string.IsNullOrWhiteSpace(targetName))
         {
@@ -31,14 +45,12 @@ public sealed class MessageDeliveryException : Exception
 
         if (reason != MessageDeliveryFailureReason.Timeout && innerException is null)
         {
-            throw new ArgumentNullException(nameof(innerException));
+            throw new ArgumentException(
+                "A delivery failure other than timeout must provide an inner exception.",
+                nameof(innerException)
+            );
         }
 
-        TargetName = targetName;
-        Reason = reason;
+        return $"Delivery failed for outbound target '{targetName}' with reason '{reason}'.";
     }
-
-    public string TargetName { get; }
-
-    public MessageDeliveryFailureReason Reason { get; }
 }
