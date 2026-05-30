@@ -7,4 +7,7 @@ public sealed record RabbitMqChannelGroupDefinition(
     int MaximumChannelCount,
     RabbitMqPublisherConfirmMode? PublisherConfirmMode = null,
     TimeSpan? PublisherConfirmTimeout = null
-);
+)
+{
+    public const string ReservedImplicitNamePrefix = "$implicit:";
+}

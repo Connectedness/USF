@@ -171,7 +171,10 @@ public static class RabbitMqOutboundTopologyCompiler
         }
 
         var implicitChannelGroup = CreateChannelGroup(
-            new RabbitMqChannelGroupDefinition($"$implicit:{channelGroups.Count}:{targetName}", 1),
+            new RabbitMqChannelGroupDefinition(
+                $"{RabbitMqChannelGroupDefinition.ReservedImplicitNamePrefix}{channelGroups.Count}:{targetName}",
+                1
+            ),
             defaultPublisherConfirmMode,
             defaultPublisherConfirmTimeout,
             getTopology
@@ -386,6 +389,16 @@ public static class RabbitMqOutboundTopologyCompiler
             {
                 validationErrors.Add(
                     $"Channel group '{channelGroup.Name}' maximum channel count must be greater than zero."
+                );
+            }
+
+            if (channelGroup.Name.StartsWith(
+                    RabbitMqChannelGroupDefinition.ReservedImplicitNamePrefix,
+                    StringComparison.Ordinal
+                ))
+            {
+                validationErrors.Add(
+                    $"Channel group '{channelGroup.Name}' uses reserved name prefix '{RabbitMqChannelGroupDefinition.ReservedImplicitNamePrefix}'."
                 );
             }
 

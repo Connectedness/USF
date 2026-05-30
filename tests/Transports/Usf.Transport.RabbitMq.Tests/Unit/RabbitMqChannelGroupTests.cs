@@ -89,6 +89,19 @@ public sealed class RabbitMqChannelGroupTests
     }
 
     [Fact]
+    public void RabbitMqOutboundTopologyBuilder_RejectsReservedImplicitChannelGroupNamePrefix()
+    {
+        var builder = new RabbitMqOutboundTopologyBuilder();
+
+        var action = () => builder.ChannelGroup("$implicit:user-defined", 1);
+
+        action
+           .Should().Throw<ArgumentException>()
+           .WithParameterName("name")
+           .WithMessage("Channel group names beginning with '$implicit:' are reserved.*");
+    }
+
+    [Fact]
     public async Task RabbitMqChannelPool_ReusesHealthyChannelsSequentially()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
@@ -547,6 +560,32 @@ public sealed class RabbitMqChannelGroupTests
         var exception = act.Should().Throw<OutboundTopologyValidationException>().Which;
         exception.ValidationErrors.Should().Contain(
             "Channel group 'invalid' maximum channel count must be greater than zero."
+        );
+    }
+
+    [Fact]
+    public void RabbitMqOutboundTopologyCompiler_RejectsReservedImplicitChannelGroupNamePrefix()
+    {
+        var services = new ServiceCollection();
+        services.AddSingleton(
+            new RabbitMqOutboundTopologyConfiguration(
+                static _ => new ConnectionFactory(),
+                Array.Empty<RabbitMqExchangeDefinition>(),
+                Array.Empty<RabbitMqQueueDefinition>(),
+                Array.Empty<RabbitMqBindingDefinition>(),
+                Array.Empty<RabbitMqAddressDefinition>(),
+                [new RabbitMqChannelGroupDefinition("$implicit:user-defined", 1)],
+                Array.Empty<RabbitMqOutboundTargetDefinition>()
+            )
+        );
+        using var serviceProvider = services.BuildServiceProvider();
+
+        // ReSharper disable once AccessToDisposedClosure -- act is called before disposal
+        Action act = () => _ = RabbitMqOutboundTopologyCompiler.Compile(serviceProvider);
+
+        var exception = act.Should().Throw<OutboundTopologyValidationException>().Which;
+        exception.ValidationErrors.Should().Contain(
+            "Channel group '$implicit:user-defined' uses reserved name prefix '$implicit:'."
         );
     }
 

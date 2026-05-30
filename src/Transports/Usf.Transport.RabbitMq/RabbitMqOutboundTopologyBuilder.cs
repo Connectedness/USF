@@ -137,9 +137,22 @@ public sealed class RabbitMqOutboundTopologyBuilder
             ValidatePublisherConfirmTimeout(publisherConfirmTimeout.Value, nameof(publisherConfirmTimeout));
         }
 
+        var channelGroupName = RequireText(name, nameof(name));
+
+        if (channelGroupName.StartsWith(
+                RabbitMqChannelGroupDefinition.ReservedImplicitNamePrefix,
+                StringComparison.Ordinal
+            ))
+        {
+            throw new ArgumentException(
+                $"Channel group names beginning with '{RabbitMqChannelGroupDefinition.ReservedImplicitNamePrefix}' are reserved.",
+                nameof(name)
+            );
+        }
+
         _channelGroupDefinitions.Add(
             new RabbitMqChannelGroupDefinition(
-                RequireText(name, nameof(name)),
+                channelGroupName,
                 maximumChannelCount,
                 publisherConfirmMode,
                 publisherConfirmTimeout
