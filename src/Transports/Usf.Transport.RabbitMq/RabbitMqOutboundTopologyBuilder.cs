@@ -17,6 +17,16 @@ public sealed class RabbitMqOutboundTopologyBuilder
     private RabbitMqPublisherConfirmMode _defaultPublisherConfirmMode = RabbitMqPublisherConfirmDefaults.Mode;
     private TimeSpan _defaultPublisherConfirmTimeout = RabbitMqPublisherConfirmDefaults.Timeout;
 
+    /// <summary>
+    /// Configures the RabbitMQ connection factory used when the outbound topology first opens a connection.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="ConnectionFactory.AutomaticRecoveryEnabled" /> must be <see langword="true" />.
+    /// <see cref="ConnectionFactory.NetworkRecoveryInterval" /> remains caller-configurable.
+    /// <see cref="ConnectionFactory.TopologyRecoveryEnabled" /> remains caller-controlled and defaults to
+    /// <see langword="true" /> in RabbitMQ.Client. It governs exchange, queue, and binding recovery rather than
+    /// connection recovery, and need not be enabled when broker topology is provisioned externally.
+    /// </remarks>
     public RabbitMqOutboundTopologyBuilder UseConnectionFactory(ConnectionFactory connectionFactory)
     {
         if (connectionFactory is null)
@@ -29,6 +39,16 @@ public sealed class RabbitMqOutboundTopologyBuilder
         return this;
     }
 
+    /// <summary>
+    /// Configures the RabbitMQ connection factory delegate invoked when the outbound topology first opens a connection.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="ConnectionFactory.AutomaticRecoveryEnabled" /> must be <see langword="true" />.
+    /// <see cref="ConnectionFactory.NetworkRecoveryInterval" /> remains caller-configurable.
+    /// <see cref="ConnectionFactory.TopologyRecoveryEnabled" /> remains caller-controlled and defaults to
+    /// <see langword="true" /> in RabbitMQ.Client. It governs exchange, queue, and binding recovery rather than
+    /// connection recovery, and need not be enabled when broker topology is provisioned externally.
+    /// </remarks>
     public RabbitMqOutboundTopologyBuilder UseConnectionFactory(
         Func<IServiceProvider, ConnectionFactory> createConnectionFactory
     )

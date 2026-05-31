@@ -199,6 +199,81 @@ public sealed class RabbitMqChannelGroupTests
     }
 
     [Fact]
+    public async Task RabbitMqChannelPool_ReusesRecoveredIdleChannelWrapper()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var channel = new TestRabbitMqChannel();
+        var createCallCount = 0;
+        await using var pool = new DefaultRabbitMqChannelPool(
+            1,
+            _ =>
+            {
+                createCallCount++;
+                return Task.FromResult(channel.Object);
+            }
+        );
+
+        IChannel firstChannel;
+        await using (var lease = await pool.AcquireAsync(cancellationToken))
+        {
+            firstChannel = lease.Channel;
+        }
+
+        await channel.ShutdownAsync();
+        await channel.RaiseRecoveryAsync();
+
+        await using var recoveredLease = await pool.AcquireAsync(cancellationToken);
+
+        recoveredLease.Channel.Should().BeSameAs(firstChannel);
+        createCallCount.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task RabbitMqChannelPool_DiscardsUnrecoveredIdleChannelWithoutLeakingSlot()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var firstChannel = new TestRabbitMqChannel();
+        var secondChannel = new TestRabbitMqChannel();
+        var channels = new Queue<TestRabbitMqChannel>([firstChannel, secondChannel]);
+        await using var pool = new DefaultRabbitMqChannelPool(1, _ => Task.FromResult(channels.Dequeue().Object));
+
+        await using (await pool.AcquireAsync(cancellationToken)) { }
+
+        await firstChannel.ShutdownAsync();
+
+        IChannel replacement;
+        await using (var replacementLease = await pool.AcquireAsync(cancellationToken))
+        {
+            replacement = replacementLease.Channel;
+        }
+
+        await using var reusedReplacementLease = await pool.AcquireAsync(cancellationToken);
+
+        replacement.Should().BeSameAs(secondChannel.Object);
+        reusedReplacementLease.Channel.Should().BeSameAs(secondChannel.Object);
+        firstChannel.DisposeAsyncCallCount.Should().Be(1);
+        channels.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task RabbitMqChannelPool_UnsubscribesShutdownAndRecoveryHandlersDuringDisposal()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var channel = new TestRabbitMqChannel();
+        var pool = new DefaultRabbitMqChannelPool(1, _ => Task.FromResult(channel.Object));
+
+        await using (await pool.AcquireAsync(cancellationToken)) { }
+
+        await pool.DisposeAsync();
+
+        channel.ShutdownAsyncAddCallCount.Should().Be(1);
+        channel.ShutdownAsyncRemoveCallCount.Should().Be(1);
+        channel.RecoveryAsyncAddCallCount.Should().Be(1);
+        channel.RecoveryAsyncRemoveCallCount.Should().Be(1);
+        channel.DisposeAsyncCallCount.Should().Be(1);
+    }
+
+    [Fact]
     public async Task RabbitMqChannelPool_PropagatesCancellationWhileWaitingForReturnedChannel()
     {
         var channel = new TestRabbitMqChannel();
@@ -427,6 +502,112 @@ public sealed class RabbitMqChannelGroupTests
 
         resolved.Should().OnlyContain(resolvedConnection => ReferenceEquals(resolvedConnection, connection.Object));
         createCallCount.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task RabbitMqOutboundTopology_RejectsFactoryWithAutomaticRecoveryDisabledWhenConnectionIsFirstCreated()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var createFactoryCallCount = 0;
+        var builder = new RabbitMqOutboundTopologyBuilder();
+        builder.UseConnectionFactory(
+            _ =>
+            {
+                createFactoryCallCount++;
+                return new ConnectionFactory
+                {
+                    AutomaticRecoveryEnabled = false
+                };
+            }
+        );
+        var services = new ServiceCollection();
+        services.AddSingleton(builder.Build());
+        using var serviceProvider = services.BuildServiceProvider();
+        await using var topology = RabbitMqOutboundTopologyCompiler.Compile(serviceProvider);
+
+        createFactoryCallCount.Should().Be(0);
+
+        var action = async () => await topology.GetConnectionAsync(cancellationToken);
+
+        var exception = (await action.Should().ThrowAsync<OutboundTopologyValidationException>()).Which;
+        exception.ValidationErrors.Should().ContainSingle()
+           .Which.Should()
+           .Be(
+                "RabbitMQ automatic connection recovery must be enabled. Configure ConnectionFactory.AutomaticRecoveryEnabled to true."
+            );
+        createFactoryCallCount.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task RabbitMqConnectionProvider_LogsLifecycleEventsAndKeepsCachedConnection()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var loggerProvider = new RecordingLoggerProvider();
+        using var loggerFactory = new RecordingLoggerFactory(loggerProvider);
+        var connection = new TestRabbitMqConnection();
+        var createConnectionCallCount = 0;
+        var provider = new RabbitMqConnectionProvider(
+            _ =>
+            {
+                createConnectionCallCount++;
+                return Task.FromResult(connection.Object);
+            },
+            loggerFactory.CreateLogger(typeof(RabbitMqConnectionProvider))
+        );
+
+        var initialConnection = await provider.GetConnectionAsync(cancellationToken);
+        await connection.RaiseConnectionShutdownAsync(320, "CONNECTION_FORCED");
+        var cachedConnection = await provider.GetConnectionAsync(cancellationToken);
+        var recoveryException = new InvalidOperationException("recovery failed");
+        await connection.RaiseConnectionRecoveryErrorAsync(recoveryException);
+        await connection.RaiseRecoverySucceededAsync();
+
+        initialConnection.Should().BeSameAs(connection.Object);
+        cachedConnection.Should().BeSameAs(connection.Object);
+        createConnectionCallCount.Should().Be(1);
+        connection.ConnectionShutdownAsyncAddCallCount.Should().Be(1);
+        connection.RecoverySucceededAsyncAddCallCount.Should().Be(1);
+        connection.ConnectionRecoveryErrorAsyncAddCallCount.Should().Be(1);
+        var shutdownEntry = loggerProvider.Entries.Should().ContainSingle(
+            entry => entry.LogLevel == LogLevel.Warning &&
+                     Equals(entry.Fields["Transition"], "shutdown")
+        ).Which;
+        shutdownEntry.Fields["Initiator"].Should().Be(ShutdownInitiator.Library);
+        shutdownEntry.Fields["ReplyCode"].Should().Be((ushort) 320);
+        shutdownEntry.Fields["ReplyText"].Should().Be("CONNECTION_FORCED");
+        loggerProvider.Entries.Should().ContainSingle(
+            entry => entry.LogLevel == LogLevel.Warning &&
+                     entry.Exception == recoveryException &&
+                     Equals(entry.Fields["Transition"], "recovery-failed")
+        );
+        loggerProvider.Entries.Should().ContainSingle(
+            entry => entry.LogLevel == LogLevel.Information &&
+                     Equals(entry.Fields["Transition"], "recovery-succeeded")
+        );
+
+        await provider.DisposeAsync();
+
+        connection.ConnectionShutdownAsyncRemoveCallCount.Should().Be(1);
+        connection.RecoverySucceededAsyncRemoveCallCount.Should().Be(1);
+        connection.ConnectionRecoveryErrorAsyncRemoveCallCount.Should().Be(1);
+        connection.DisposeAsyncCallCount.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task RabbitMqConnectionProvider_UnsubscribesLifecycleEventsDuringSynchronousDisposal()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var connection = new TestRabbitMqConnection();
+        var provider = new RabbitMqConnectionProvider(_ => Task.FromResult(connection.Object));
+
+        _ = await provider.GetConnectionAsync(cancellationToken);
+
+        provider.Dispose();
+
+        connection.ConnectionShutdownAsyncRemoveCallCount.Should().Be(1);
+        connection.RecoverySucceededAsyncRemoveCallCount.Should().Be(1);
+        connection.ConnectionRecoveryErrorAsyncRemoveCallCount.Should().Be(1);
+        connection.DisposeCallCount.Should().Be(1);
     }
 
     [Fact]

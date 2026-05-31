@@ -1,7 +1,10 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using RabbitMQ.Client;
+using RabbitMQ.Client.Events;
 
 namespace Usf.Transport.RabbitMq;
 
@@ -9,13 +12,18 @@ public sealed class RabbitMqConnectionProvider : IAsyncDisposable, IDisposable
 {
     private readonly Func<CancellationToken, Task<IConnection>> _createConnectionAsync;
     private readonly SemaphoreSlim _gate = new (1, 1);
+    private readonly ILogger _logger;
     private volatile Task<IConnection>? _connectionTask;
     private int _disposed;
 
-    public RabbitMqConnectionProvider(Func<CancellationToken, Task<IConnection>> createConnectionAsync)
+    public RabbitMqConnectionProvider(
+        Func<CancellationToken, Task<IConnection>> createConnectionAsync,
+        ILogger? logger = null
+    )
     {
         _createConnectionAsync =
             createConnectionAsync ?? throw new ArgumentNullException(nameof(createConnectionAsync));
+        _logger = logger ?? NullLogger.Instance;
     }
 
     public async ValueTask DisposeAsync()
@@ -30,6 +38,8 @@ public sealed class RabbitMqConnectionProvider : IAsyncDisposable, IDisposable
         if (_connectionTask is not null && _connectionTask.Status == TaskStatus.RanToCompletion)
         {
             var connection = await _connectionTask.ConfigureAwait(false);
+            Unsubscribe(connection);
+
             if (connection is IAsyncDisposable asyncDisposable)
             {
                 await asyncDisposable.DisposeAsync().ConfigureAwait(false);
@@ -52,7 +62,9 @@ public sealed class RabbitMqConnectionProvider : IAsyncDisposable, IDisposable
 
         if (_connectionTask is not null && _connectionTask.Status == TaskStatus.RanToCompletion)
         {
-            _connectionTask.Result.Dispose();
+            var connection = _connectionTask.Result;
+            Unsubscribe(connection);
+            connection.Dispose();
         }
     }
 
@@ -75,7 +87,7 @@ public sealed class RabbitMqConnectionProvider : IAsyncDisposable, IDisposable
 
             if (_connectionTask is null)
             {
-                _connectionTask = _createConnectionAsync(cancellationToken);
+                _connectionTask = CreateConnectionAsync(cancellationToken);
             }
 
             return await _connectionTask.ConfigureAwait(false);
@@ -99,5 +111,57 @@ public sealed class RabbitMqConnectionProvider : IAsyncDisposable, IDisposable
         {
             throw new ObjectDisposedException(nameof(RabbitMqConnectionProvider));
         }
+    }
+
+    private async Task<IConnection> CreateConnectionAsync(CancellationToken cancellationToken)
+    {
+        var connection = await _createConnectionAsync(cancellationToken).ConfigureAwait(false);
+        Subscribe(connection);
+        return connection;
+    }
+
+    private Task OnConnectionRecoveryErrorAsync(object sender, ConnectionRecoveryErrorEventArgs eventArgs)
+    {
+        _logger.LogWarning(
+            eventArgs.Exception,
+            "RabbitMQ connection lifecycle transition {Transition}",
+            "recovery-failed"
+        );
+        return Task.CompletedTask;
+    }
+
+    private Task OnConnectionShutdownAsync(object sender, ShutdownEventArgs eventArgs)
+    {
+        _logger.LogWarning(
+            "RabbitMQ connection lifecycle transition {Transition}: initiator {Initiator}, reply code {ReplyCode}, reply text {ReplyText}",
+            "shutdown",
+            eventArgs.Initiator,
+            eventArgs.ReplyCode,
+            eventArgs.ReplyText
+        );
+        return Task.CompletedTask;
+    }
+
+    private Task OnRecoverySucceededAsync(object sender, AsyncEventArgs eventArgs)
+    {
+        _logger.LogInformation(
+            "RabbitMQ connection lifecycle transition {Transition}",
+            "recovery-succeeded"
+        );
+        return Task.CompletedTask;
+    }
+
+    private void Subscribe(IConnection connection)
+    {
+        connection.ConnectionShutdownAsync += OnConnectionShutdownAsync;
+        connection.RecoverySucceededAsync += OnRecoverySucceededAsync;
+        connection.ConnectionRecoveryErrorAsync += OnConnectionRecoveryErrorAsync;
+    }
+
+    private void Unsubscribe(IConnection connection)
+    {
+        connection.ConnectionShutdownAsync -= OnConnectionShutdownAsync;
+        connection.RecoverySucceededAsync -= OnRecoverySucceededAsync;
+        connection.ConnectionRecoveryErrorAsync -= OnConnectionRecoveryErrorAsync;
     }
 }

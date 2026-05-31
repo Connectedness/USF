@@ -1,5 +1,9 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Diagnostics;
+using System.Net;
+using System.Net.Sockets;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -7,6 +11,7 @@ using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using RabbitMQ.Client;
+using RabbitMQ.Client.Events;
 using RabbitMQ.Client.Exceptions;
 using Testcontainers.RabbitMq;
 using Usf.Core.Messaging;
@@ -435,6 +440,133 @@ public sealed class RabbitMqPublishingIntegrationTests
         }
     }
 
+    [Fact]
+    public async Task PublishMessageAsync_RecoversAfterBrokerRestartWithoutExhaustingSingleChannelPool()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var hostPort = GetAvailableTcpPort();
+        var container = new RabbitMqBuilder("public.ecr.aws/docker/library/rabbitmq:3.13-management")
+           .WithPortBinding(hostPort, 5672)
+           .Build();
+        await container.StartAsync(cancellationToken);
+
+        try
+        {
+            var connectionString = container.GetConnectionString();
+            var mappedPort = container.GetMappedPublicPort(5672);
+            var services = new ServiceCollection();
+            services.AddSingleton<Utf8JsonMessageSerializer>();
+            services.AddRabbitMqOutboundTopology(
+                builder =>
+                {
+                    builder.UseConnectionFactory(
+                        _ => new ConnectionFactory
+                        {
+                            Uri = new Uri(connectionString),
+                            NetworkRecoveryInterval = TimeSpan.FromMilliseconds(200)
+                        }
+                    );
+
+                    builder.Exchange("recovering-fanout", ExchangeType.Fanout);
+                    builder.Address("recovering-address", "recovering-fanout");
+                    builder.Queue("recovering-queue");
+                    builder.QueueBinding("recovering-fanout", "recovering-queue");
+                    builder.ChannelGroup(
+                        "recovering-group",
+                        1,
+                        RabbitMqPublisherConfirmMode.Confirms,
+                        TimeSpan.FromSeconds(2)
+                    );
+                    builder.Publish<RabbitMqPublishMessage>(
+                        route => route
+                           .ToFanoutAddress("recovering-address")
+                           .UseChannelGroup("recovering-group")
+                           .WithSerializer<Utf8JsonMessageSerializer>()
+                    );
+                }
+            );
+
+            await using var serviceProvider = services.BuildServiceProvider();
+
+            foreach (var hostedService in serviceProvider.GetServices<IHostedService>())
+            {
+                await hostedService.StartAsync(cancellationToken);
+            }
+
+            var publisher = serviceProvider.GetRequiredService<IMessagePublisher>();
+            var topology = serviceProvider.GetRequiredService<RabbitMqOutboundTopology>();
+            var connection = await topology.GetConnectionAsync(cancellationToken);
+            var recovered = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+            var recoveryFailures = new ConcurrentQueue<Exception>();
+            AsyncEventHandler<ConnectionRecoveryErrorEventArgs> recoveryErrorHandler = (_, eventArgs) =>
+            {
+                recoveryFailures.Enqueue(eventArgs.Exception);
+                return Task.CompletedTask;
+            };
+            AsyncEventHandler<AsyncEventArgs> recoveryHandler = (_, _) =>
+            {
+                recovered.TrySetResult(null);
+                return Task.CompletedTask;
+            };
+            connection.ConnectionRecoveryErrorAsync += recoveryErrorHandler;
+            connection.RecoverySucceededAsync += recoveryHandler;
+
+            try
+            {
+                await publisher.PublishMessageAsync(
+                    new RabbitMqPublishMessage(50, "before-restart"),
+                    cancellationToken: cancellationToken
+                );
+
+                await container.StopAsync(cancellationToken);
+
+                using var outageCancellationTokenSource =
+                    CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                outageCancellationTokenSource.CancelAfter(TimeSpan.FromSeconds(5));
+                var stopwatch = Stopwatch.StartNew();
+                var publishDuringOutage = async () => await publisher.PublishMessageAsync(
+                    new RabbitMqPublishMessage(51, "during-outage"),
+                    cancellationToken: outageCancellationTokenSource.Token
+                );
+
+                await publishDuringOutage.Should().ThrowAsync<Exception>();
+                stopwatch.Elapsed.Should().BeLessThan(TimeSpan.FromSeconds(10));
+
+                await container.StartAsync(cancellationToken);
+                container.GetMappedPublicPort(5672).Should().Be(mappedPort);
+
+                try
+                {
+                    await recovered.Task.WaitAsync(TimeSpan.FromSeconds(30), cancellationToken);
+                }
+                catch (TimeoutException exception)
+                {
+                    throw new TimeoutException(
+                        $"RabbitMQ.Client did not recover the connection. IsOpen={connection.IsOpen}. Recovery failures: {string.Join(" | ", recoveryFailures)}",
+                        exception
+                    );
+                }
+
+                for (var id = 52; id < 62; id++)
+                {
+                    await publisher.PublishMessageAsync(
+                        new RabbitMqPublishMessage(id, $"after-restart-{id}"),
+                        cancellationToken: cancellationToken
+                    );
+                }
+            }
+            finally
+            {
+                connection.ConnectionRecoveryErrorAsync -= recoveryErrorHandler;
+                connection.RecoverySucceededAsync -= recoveryHandler;
+            }
+        }
+        finally
+        {
+            await container.DisposeAsync();
+        }
+    }
+
     private static async Task<BasicGetResult> GetRequiredMessageAsync(
         IChannel channel,
         string queueName,
@@ -454,6 +586,21 @@ public sealed class RabbitMqPublishingIntegrationTests
         }
 
         throw new InvalidOperationException($"No RabbitMQ message was available in queue '{queueName}'.");
+    }
+
+    private static int GetAvailableTcpPort()
+    {
+        var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+
+        try
+        {
+            return ((IPEndPoint) listener.LocalEndpoint).Port;
+        }
+        finally
+        {
+            listener.Stop();
+        }
     }
 
     private static async Task DeclareExchangeAsync(

@@ -36,7 +36,8 @@ public static class RabbitMqOutboundTopologyCompiler
 
         RabbitMqOutboundTopology? topology = null;
         var connectionProvider = new RabbitMqConnectionProvider(
-            cancellationToken => CreateConnectionAsync(configuration, serviceProvider, cancellationToken)
+            cancellationToken => CreateConnectionAsync(configuration, serviceProvider, cancellationToken),
+            CreateLogger(serviceProvider, typeof(RabbitMqConnectionProvider))
         );
         var explicitChannelGroupsByName = new Dictionary<string, RabbitMqChannelGroup>(StringComparer.Ordinal);
         List<RabbitMqChannelGroup> channelGroups = [];
@@ -115,6 +116,15 @@ public static class RabbitMqOutboundTopologyCompiler
                                 throw new OutboundTopologyValidationException(
                                     ["A RabbitMQ connection factory must be configured."]
                                 );
+
+        if (!connectionFactory.AutomaticRecoveryEnabled)
+        {
+            throw new OutboundTopologyValidationException(
+                [
+                    "RabbitMQ automatic connection recovery must be enabled. Configure ConnectionFactory.AutomaticRecoveryEnabled to true."
+                ]
+            );
+        }
 
         return connectionFactory.CreateConnectionAsync(cancellationToken);
     }
@@ -761,12 +771,17 @@ public static class RabbitMqOutboundTopologyCompiler
         string description
     )
     {
-        var loggerFactory = serviceProvider.GetService<ILoggerFactory>() ?? NullLoggerFactory.Instance;
-        var logger = loggerFactory.CreateLogger(typeof(RabbitMqOutboundTopologyCompiler));
+        var logger = CreateLogger(serviceProvider, typeof(RabbitMqOutboundTopologyCompiler));
         logger.LogInformation(
             "RabbitMQ outbound topology may open up to {ChannelCount} channels ({Description})",
             worstCaseChannelCount,
             description
         );
+    }
+
+    private static ILogger CreateLogger(IServiceProvider serviceProvider, Type categoryType)
+    {
+        var loggerFactory = serviceProvider.GetService<ILoggerFactory>() ?? NullLoggerFactory.Instance;
+        return loggerFactory.CreateLogger(categoryType);
     }
 }

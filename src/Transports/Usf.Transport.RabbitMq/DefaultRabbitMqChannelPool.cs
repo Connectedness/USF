@@ -1,5 +1,4 @@
 using System;
-using System.ComponentModel;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
@@ -62,10 +61,12 @@ public sealed class DefaultRabbitMqChannelPool : IRabbitMqChannelPool
 
             if (TryReserveChannelSlot())
             {
+                PooledChannel? createdChannel = null;
+
                 try
                 {
                     var channel = await _channelFactory(cancellationToken).ConfigureAwait(false);
-                    var createdChannel = new PooledChannel(channel);
+                    createdChannel = new PooledChannel(channel);
 
                     if (!createdChannel.IsHealthy)
                     {
@@ -77,7 +78,11 @@ public sealed class DefaultRabbitMqChannelPool : IRabbitMqChannelPool
                 }
                 catch
                 {
-                    SignalChannelDisposed();
+                    if (createdChannel is null)
+                    {
+                        SignalChannelDisposed();
+                    }
+
                     throw;
                 }
             }
@@ -204,32 +209,42 @@ public sealed class DefaultRabbitMqChannelPool : IRabbitMqChannelPool
 
     public sealed class PooledChannel : IAsyncDisposable
     {
-        private readonly IChannel _channel;
+        private readonly IRecoverable? _recoverableChannel;
         private long _currentLeaseId;
         private long _nextLeaseId;
         private int _observedShutdown;
 
         public PooledChannel(IChannel channel)
         {
-            _channel = channel ?? throw new ArgumentNullException(nameof(channel));
-            _channel.ChannelShutdownAsync += OnChannelShutdownAsync;
+            Channel = channel ?? throw new ArgumentNullException(nameof(channel));
+            Channel.ChannelShutdownAsync += OnChannelShutdownAsync;
+
+            if (Channel is IRecoverable recoverableChannel)
+            {
+                _recoverableChannel = recoverableChannel;
+                _recoverableChannel.RecoveryAsync += OnRecoveryAsync;
+            }
         }
 
-        public IChannel Channel => _channel;
+        public IChannel Channel { get; }
 
-        public bool IsHealthy => Volatile.Read(ref _observedShutdown) == 0 && _channel.IsOpen;
+        public bool IsHealthy => Volatile.Read(ref _observedShutdown) == 0 && Channel.IsOpen;
 
         public async ValueTask DisposeAsync()
         {
-            _channel.ChannelShutdownAsync -= OnChannelShutdownAsync;
+            Channel.ChannelShutdownAsync -= OnChannelShutdownAsync;
+            if (_recoverableChannel is not null)
+            {
+                _recoverableChannel.RecoveryAsync -= OnRecoveryAsync;
+            }
 
-            if (_channel is IAsyncDisposable asyncDisposable)
+            if (Channel is IAsyncDisposable asyncDisposable)
             {
                 await asyncDisposable.DisposeAsync().ConfigureAwait(false);
                 return;
             }
 
-            _channel.Dispose();
+            Channel.Dispose();
         }
 
         public long BeginLease()
@@ -247,6 +262,16 @@ public sealed class DefaultRabbitMqChannelPool : IRabbitMqChannelPool
         private Task OnChannelShutdownAsync(object sender, ShutdownEventArgs eventArgs)
         {
             Interlocked.Exchange(ref _observedShutdown, 1);
+            return Task.CompletedTask;
+        }
+
+        private Task OnRecoveryAsync(object sender, AsyncEventArgs eventArgs)
+        {
+            if (Channel.IsOpen)
+            {
+                Interlocked.Exchange(ref _observedShutdown, 0);
+            }
+
             return Task.CompletedTask;
         }
     }

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Microsoft.Extensions.Logging;
 
 namespace Usf.Transport.RabbitMq.Tests.TestSupport;
@@ -17,7 +18,13 @@ public sealed class RecordingLoggerProvider : ILoggerProvider
 
     public void Dispose() { }
 
-    public sealed record LogEntry(string CategoryName, LogLevel LogLevel, string Message);
+    public sealed record LogEntry(
+        string CategoryName,
+        LogLevel LogLevel,
+        string Message,
+        Exception? Exception,
+        IReadOnlyDictionary<string, object?> Fields
+    );
 
     private sealed class RecordingLogger : ILogger
     {
@@ -48,7 +55,13 @@ public sealed class RecordingLoggerProvider : ILoggerProvider
             Func<TState, Exception?, string> formatter
         )
         {
-            _entries.Add(new LogEntry(_categoryName, logLevel, formatter(state, exception)));
+            var fields = state is IEnumerable<KeyValuePair<string, object?>> values ?
+                values
+                   .Where(static value => value.Key != "{OriginalFormat}")
+                   .ToDictionary(static value => value.Key, static value => value.Value, StringComparer.Ordinal) :
+                new Dictionary<string, object?>(StringComparer.Ordinal);
+
+            _entries.Add(new LogEntry(_categoryName, logLevel, formatter(state, exception), exception, fields));
         }
     }
 

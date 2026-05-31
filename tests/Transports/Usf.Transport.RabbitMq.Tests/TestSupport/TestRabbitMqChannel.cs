@@ -8,15 +8,18 @@ using RabbitMQ.Client.Events;
 
 namespace Usf.Transport.RabbitMq.Tests.TestSupport;
 
+public interface ITestRecoverableChannel : IChannel, IRecoverable { }
+
 public sealed class TestRabbitMqChannel
 {
     private readonly string _disposalEventName;
     private readonly IList<string>? _disposalEvents;
     private AsyncEventHandler<ShutdownEventArgs>? _channelShutdownAsync;
+    private AsyncEventHandler<AsyncEventArgs>? _recoveryAsync;
 
     public TestRabbitMqChannel(IList<string>? disposalEvents = null, string disposalEventName = "channel")
     {
-        Object = RabbitMqDispatchProxy<IChannel>.Create(HandleInvoke);
+        Object = RabbitMqDispatchProxy<ITestRecoverableChannel>.Create(HandleInvoke);
         _disposalEvents = disposalEvents;
         _disposalEventName = disposalEventName;
     }
@@ -30,6 +33,14 @@ public sealed class TestRabbitMqChannel
     public int DisposeAsyncCallCount { get; private set; }
 
     public int DisposeCallCount { get; private set; }
+
+    public int RecoveryAsyncAddCallCount { get; private set; }
+
+    public int RecoveryAsyncRemoveCallCount { get; private set; }
+
+    public int ShutdownAsyncAddCallCount { get; private set; }
+
+    public int ShutdownAsyncRemoveCallCount { get; private set; }
 
     public bool IsOpen { get; private set; } = true;
 
@@ -51,6 +62,17 @@ public sealed class TestRabbitMqChannel
         }
     }
 
+    public async Task RaiseRecoveryAsync()
+    {
+        IsOpen = true;
+        CloseReason = null;
+
+        if (_recoveryAsync is not null)
+        {
+            await _recoveryAsync(Object, new AsyncEventArgs(CancellationToken.None)).ConfigureAwait(false);
+        }
+    }
+
     private object? HandleInvoke(MethodInfo targetMethod, object?[]? arguments)
     {
         switch (targetMethod.Name)
@@ -62,10 +84,20 @@ public sealed class TestRabbitMqChannel
             case "get_CloseReason":
                 return CloseReason;
             case "add_ChannelShutdownAsync":
+                ShutdownAsyncAddCallCount++;
                 _channelShutdownAsync += (AsyncEventHandler<ShutdownEventArgs>) arguments![0]!;
                 return null;
             case "remove_ChannelShutdownAsync":
+                ShutdownAsyncRemoveCallCount++;
                 _channelShutdownAsync -= (AsyncEventHandler<ShutdownEventArgs>) arguments![0]!;
+                return null;
+            case "add_RecoveryAsync":
+                RecoveryAsyncAddCallCount++;
+                _recoveryAsync += (AsyncEventHandler<AsyncEventArgs>) arguments![0]!;
+                return null;
+            case "remove_RecoveryAsync":
+                RecoveryAsyncRemoveCallCount++;
+                _recoveryAsync -= (AsyncEventHandler<AsyncEventArgs>) arguments![0]!;
                 return null;
             case "BasicPublishAsync":
                 BasicPublishCallCount++;
