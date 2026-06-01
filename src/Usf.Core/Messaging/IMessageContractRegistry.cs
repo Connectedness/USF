@@ -14,6 +14,8 @@ public interface IMessageContractRegistry
 {
     string GetDiscriminator(Type messageType);
 
+    bool TryGetDiscriminator(Type messageType, out string? discriminator);
+
     string? GetDataSchema(Type messageType);
 
     bool TryResolveType(string discriminator, out Type? messageType);

@@ -17,8 +17,7 @@ public static class CloudEventsOptionsValidation
 
     public static string GetRequiredSource(string? source)
     {
-        if (string.IsNullOrWhiteSpace(source) ||
-            !Uri.TryCreate(source, UriKind.RelativeOrAbsolute, out _))
+        if (!IsValidSource(source))
         {
             throw new CloudEventMetadataException(
                 "source",
@@ -27,5 +26,10 @@ public static class CloudEventsOptionsValidation
         }
 
         return source!;
+    }
+
+    public static bool IsValidSource(string? source)
+    {
+        return !string.IsNullOrWhiteSpace(source) && Uri.TryCreate(source, UriKind.RelativeOrAbsolute, out _);
     }
 }

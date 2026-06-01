@@ -29,7 +29,12 @@ public sealed class CloudEventMessageSerializerTests
         var time = new DateTimeOffset(2026, 5, 31, 12, 34, 56, TimeSpan.Zero);
         CloudEventMetadata metadata = new (id, time, "subject-7", "/override");
 
-        var envelope = await serializer.SerializeAsync(new EnvelopeMessage("hello"), in metadata, cancellationToken);
+        var envelope = await serializer.SerializeAsync(
+            new EnvelopeMessage("hello"),
+            in metadata,
+            type: null,
+            cancellationToken
+        );
 
         var expectedEnvelope = new CloudEventEnvelope(
             "1.0",
@@ -43,6 +48,37 @@ public sealed class CloudEventMessageSerializerTests
             "body"u8.ToArray()
         );
         envelope.Should().Be(expectedEnvelope);
+    }
+
+    [Fact]
+    public async Task SerializeAsync_UsesProvidedType_WithoutConsultingTheRegistry()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var serializer = new CloudEventMessageSerializer(
+            new MessageContractRegistry(
+                new Dictionary<Type, string>(),
+                new Dictionary<string, Type>(),
+                new Dictionary<Type, string>()
+            ),
+            new StubPayloadCodec(new EncodedPayload("body"u8.ToArray(), "application/custom")),
+            new CloudEventsOptions
+            {
+                Source = "/configured"
+            }
+        );
+        CloudEventMetadata metadata = new (
+            Guid.Parse("AB150CD4-692C-4C0F-AD47-A187957860F4"),
+            new DateTimeOffset(2026, 5, 31, 12, 34, 56, TimeSpan.Zero)
+        );
+
+        var envelope = await serializer.SerializeAsync(
+            new EnvelopeMessage("hello"),
+            in metadata,
+            "already.resolved",
+            cancellationToken
+        );
+
+        envelope.Type.Should().Be("already.resolved");
     }
 
     [Theory]
@@ -60,7 +96,7 @@ public sealed class CloudEventMessageSerializerTests
             options
         );
 
-        var action = async () => await serializer.SerializeAsync(new EnvelopeMessage("hello"), in metadata);
+        var action = async () => await serializer.SerializeAsync(new EnvelopeMessage("hello"), in metadata, type: null);
 
         var exception = (await action.Should().ThrowAsync<CloudEventMetadataException>()).Which;
         exception.AttributeName.Should().Be(expectedAttribute);

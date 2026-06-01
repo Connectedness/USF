@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using FluentAssertions;
 using Usf.Core.Messaging;
-using Usf.Core.Messaging.Errors;
 using Usf.Core.Tests.Messaging.TestSupport;
 using Xunit;
 
@@ -11,71 +10,37 @@ namespace Usf.Core.Tests.Messaging;
 public sealed class MessageContractOutboundTopologyValidatorTests
 {
     [Fact]
-    public void Validate_ReportsEveryTypedTargetWithoutCanonicalDiscriminator()
+    public void CollectValidationErrors_ReportsEveryTypedTargetWithoutCanonicalDiscriminator()
     {
-        var first = new RecordingTarget<SampleMessage>("first", CloudEventsTestFactory.CreateSerializer());
-        var second = new RecordingTarget<SampleMessage>("second", CloudEventsTestFactory.CreateSerializer());
-        var topology = new OutboundTopology(
-            new Dictionary<Type, OutboundTarget>
-            {
-                [typeof(SampleMessage)] = first
-            },
-            new Dictionary<string, OutboundTarget>(StringComparer.Ordinal)
-            {
-                ["second"] = second
-            }
+        var registry = new MessageContractRegistry(
+            new Dictionary<Type, string>(),
+            new Dictionary<string, Type>(),
+            new Dictionary<Type, string>()
         );
-        var validator = new MessageContractOutboundTopologyValidator(
-            topology,
-            new MessageContractRegistry(
-                new Dictionary<Type, string>(),
-                new Dictionary<string, Type>(),
-                new Dictionary<Type, string>()
-            )
-        );
+        KeyValuePair<string, Type>[] typedTargets =
+        [
+            new ("first", typeof(SampleMessage)),
+            new ("second", typeof(SampleMessage))
+        ];
+        List<string> validationErrors = [];
 
-        Action action = validator.Validate;
+        MessageContractOutboundTopologyValidator.CollectValidationErrors(registry, typedTargets, validationErrors);
 
-        var exception = action.Should().Throw<OutboundTopologyValidationException>().Which;
-        exception.ValidationErrors.Should().Equal(
+        validationErrors.Should().Equal(
             "Outbound target 'first' publishes unregistered CloudEvents message type 'Usf.Core.Tests.Messaging.TestSupport.SampleMessage'. Register its canonical discriminator with MessageContractRegistryBuilder.Map<T>(...) or MapOutbound<T>(...).",
             "Outbound target 'second' publishes unregistered CloudEvents message type 'Usf.Core.Tests.Messaging.TestSupport.SampleMessage'. Register its canonical discriminator with MessageContractRegistryBuilder.Map<T>(...) or MapOutbound<T>(...)."
         );
     }
 
     [Fact]
-    public void Validate_IgnoresRawOnlyTargets()
+    public void CollectValidationErrors_DoesNotReportRegisteredTargets()
     {
-        var topology = new OutboundTopology(
-            new Dictionary<Type, OutboundTarget>(),
-            new Dictionary<string, OutboundTarget>(StringComparer.Ordinal)
-            {
-                ["raw"] = new RawOutboundTarget()
-            }
-        );
-        var validator = new MessageContractOutboundTopologyValidator(
-            topology,
-            new MessageContractRegistry(
-                new Dictionary<Type, string>(),
-                new Dictionary<string, Type>(),
-                new Dictionary<Type, string>()
-            )
-        );
+        var registry = CloudEventsTestFactory.CreateRegistry();
+        KeyValuePair<string, Type>[] typedTargets = [new ("sample", typeof(SampleMessage))];
+        List<string> validationErrors = [];
 
-        validator.Validate();
-    }
+        MessageContractOutboundTopologyValidator.CollectValidationErrors(registry, typedTargets, validationErrors);
 
-    private sealed class RawOutboundTarget : OutboundTarget
-    {
-        public RawOutboundTarget()
-            : base("raw", "test") { }
-
-        public override System.Threading.Tasks.Task PublishSerializedAsync(
-            SerializedMessage message,
-            System.Threading.CancellationToken cancellationToken = default
-        )
-        {
-            return System.Threading.Tasks.Task.CompletedTask;
-        }
+        validationErrors.Should().BeEmpty();
     }
 }

@@ -58,6 +58,16 @@ public sealed class MessageContractRegistry : IMessageContractRegistry
         return discriminator;
     }
 
+    public bool TryGetDiscriminator(Type messageType, out string? discriminator)
+    {
+        if (messageType is null)
+        {
+            throw new ArgumentNullException(nameof(messageType));
+        }
+
+        return _discriminatorsByMessageType.TryGetValue(messageType, out discriminator);
+    }
+
     public string? GetDataSchema(Type messageType)
     {
         if (messageType is null)

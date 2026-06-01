@@ -5,9 +5,21 @@ namespace Usf.Core.Messaging;
 
 public interface IMessageSerializer
 {
+    /// <summary>
+    /// Serializes a message into a CloudEvents envelope.
+    /// </summary>
+    /// <param name="message">The message to serialize.</param>
+    /// <param name="metadata">The call-site-owned CloudEvents attributes.</param>
+    /// <param name="type">
+    /// The already-resolved CloudEvents <c>type</c> discriminator, or <see langword="null" /> to resolve it from the
+    /// message-contract registry. Callers that have already resolved the discriminator (for example for diagnostics)
+    /// pass it here so it is not resolved twice for a single publish.
+    /// </param>
+    /// <param name="cancellationToken">A token to cancel the operation.</param>
     ValueTask<CloudEventEnvelope> SerializeAsync<T>(
         T message,
         in CloudEventMetadata metadata,
+        string? type,
         CancellationToken cancellationToken = default
     );
 }

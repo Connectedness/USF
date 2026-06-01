@@ -294,6 +294,28 @@ public static class RabbitMqOutboundTopologyCompiler
         throw new ArgumentException("A routing-key target must provide a routing-key factory for its message type.");
     }
 
+    private static void ValidateMessageContracts(
+        IServiceProvider serviceProvider,
+        IReadOnlyList<RabbitMqOutboundTargetDefinition> targets,
+        ICollection<string> validationErrors
+    )
+    {
+        var registry = serviceProvider.GetService<IMessageContractRegistry>();
+
+        if (registry is null)
+        {
+            return;
+        }
+
+        MessageContractOutboundTopologyValidator.CollectValidationErrors(
+            registry,
+            targets.Select(
+                static target => new KeyValuePair<string, Type>(GetTargetName(target), target.MessageType)
+            ),
+            validationErrors
+        );
+    }
+
     private static List<string> Validate(
         IServiceProvider serviceProvider,
         RabbitMqOutboundTopologyConfiguration configuration
@@ -345,6 +367,7 @@ public static class RabbitMqOutboundTopologyCompiler
             validationErrors
         );
         ValidateBindings(configuration.Bindings, exchangesByName, queuesByName, validationErrors);
+        ValidateMessageContracts(serviceProvider, configuration.Targets, validationErrors);
 
         return validationErrors;
     }

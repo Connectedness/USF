@@ -1,50 +1,52 @@
 using System;
 using System.Collections.Generic;
-using Usf.Core.Messaging.Errors;
 
 namespace Usf.Core.Messaging;
 
-public sealed class MessageContractOutboundTopologyValidator : IOutboundTopologyValidator
+/// <summary>
+/// Cross-checks outbound targets against the message-contract registry. Each transport runs this while validating
+/// its topology so that an outbound target publishing an unregistered CloudEvents message type is reported
+/// together with the transport's own validation errors and fails fast at compile time, aggregated into a single
+/// exception.
+/// </summary>
+public static class MessageContractOutboundTopologyValidator
 {
-    private readonly IMessageContractRegistry _messageContractRegistry;
-    private readonly IOutboundTopology _outboundTopology;
-
-    public MessageContractOutboundTopologyValidator(
-        IOutboundTopology outboundTopology,
-        IMessageContractRegistry messageContractRegistry
+    /// <summary>
+    /// Adds a validation error for every typed outbound target whose message type has no canonical CloudEvents
+    /// discriminator registered.
+    /// </summary>
+    /// <param name="messageContractRegistry">The registry that maps message types to discriminators.</param>
+    /// <param name="typedTargets">The typed outbound targets as (target name, message type) pairs.</param>
+    /// <param name="validationErrors">The collection that receives the validation errors.</param>
+    public static void CollectValidationErrors(
+        IMessageContractRegistry messageContractRegistry,
+        IEnumerable<KeyValuePair<string, Type>> typedTargets,
+        ICollection<string> validationErrors
     )
     {
-        _outboundTopology = outboundTopology ?? throw new ArgumentNullException(nameof(outboundTopology));
-        _messageContractRegistry = messageContractRegistry ??
-                                   throw new ArgumentNullException(nameof(messageContractRegistry));
-    }
-
-    public void Validate()
-    {
-        List<string> validationErrors = [];
-
-        foreach (var target in _outboundTopology.Targets)
+        if (messageContractRegistry is null)
         {
-            if (target.MessageType is null)
-            {
-                continue;
-            }
-
-            try
-            {
-                _ = _messageContractRegistry.GetDiscriminator(target.MessageType);
-            }
-            catch (MessageContractNotRegisteredException)
-            {
-                validationErrors.Add(
-                    $"Outbound target '{target.Name}' publishes unregistered CloudEvents message type '{target.MessageType}'. Register its canonical discriminator with MessageContractRegistryBuilder.Map<T>(...) or MapOutbound<T>(...)."
-                );
-            }
+            throw new ArgumentNullException(nameof(messageContractRegistry));
         }
 
-        if (validationErrors.Count > 0)
+        if (typedTargets is null)
         {
-            throw new OutboundTopologyValidationException(validationErrors);
+            throw new ArgumentNullException(nameof(typedTargets));
+        }
+
+        if (validationErrors is null)
+        {
+            throw new ArgumentNullException(nameof(validationErrors));
+        }
+
+        foreach (var typedTarget in typedTargets)
+        {
+            if (!messageContractRegistry.TryGetDiscriminator(typedTarget.Value, out _))
+            {
+                validationErrors.Add(
+                    $"Outbound target '{typedTarget.Key}' publishes unregistered CloudEvents message type '{typedTarget.Value}'. Register its canonical discriminator with MessageContractRegistryBuilder.Map<T>(...) or MapOutbound<T>(...)."
+                );
+            }
         }
     }
 }

@@ -68,10 +68,25 @@ public abstract class OutboundTarget<T> : OutboundTarget
         CancellationToken cancellationToken = default
     )
     {
-        return PublishCoreAsync(message, metadata, cancellationToken);
+        return PublishCoreAsync(message, metadata, type: null, cancellationToken);
     }
 
-    private async Task PublishCoreAsync(T message, CloudEventMetadata metadata, CancellationToken cancellationToken)
+    public Task PublishAsync(
+        T message,
+        in CloudEventMetadata metadata,
+        string type,
+        CancellationToken cancellationToken
+    )
+    {
+        return PublishCoreAsync(message, metadata, type, cancellationToken);
+    }
+
+    private async Task PublishCoreAsync(
+        T message,
+        CloudEventMetadata metadata,
+        string? type,
+        CancellationToken cancellationToken
+    )
     {
         if (message is null)
         {
@@ -82,7 +97,8 @@ public abstract class OutboundTarget<T> : OutboundTarget
 
         try
         {
-            envelope = await Serializer.SerializeAsync(message, in metadata, cancellationToken).ConfigureAwait(false);
+            envelope = await Serializer.SerializeAsync(message, in metadata, type, cancellationToken)
+               .ConfigureAwait(false);
         }
         catch (Exception exception) when (exception is not OperationCanceledException &&
                                           exception is not MessageSerializationException)

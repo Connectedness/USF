@@ -33,6 +33,7 @@ public sealed class CloudEventMessageSerializer : IMessageSerializer
     public ValueTask<CloudEventEnvelope> SerializeAsync<T>(
         T message,
         in CloudEventMetadata metadata,
+        string? type,
         CancellationToken cancellationToken = default
     )
     {
@@ -59,20 +60,7 @@ public sealed class CloudEventMessageSerializer : IMessageSerializer
 
         var source = CloudEventsOptionsValidation.GetRequiredSource(metadata.Source ?? _options.Source);
         var runtimeType = message.GetType();
-        string type;
-
-        try
-        {
-            type = _registry.GetDiscriminator(runtimeType);
-        }
-        catch (MessageContractNotRegisteredException exception)
-        {
-            throw new CloudEventMetadataException(
-                CloudEventAttributeNames.Type,
-                $"Register the runtime message type '{exception.MessageType}' with MessageContractRegistryBuilder.Map<T>(...) or MapOutbound<T>(...)."
-            );
-        }
-
+        var resolvedType = type ?? ResolveType(runtimeType);
         var payload = _payloadCodec.Encode(message);
 
         if (string.IsNullOrWhiteSpace(payload.DataContentType))
@@ -87,7 +75,7 @@ public sealed class CloudEventMessageSerializer : IMessageSerializer
             "1.0",
             metadata.Id.ToString("D"),
             source,
-            type,
+            resolvedType,
             metadata.Time,
             metadata.Subject,
             payload.DataContentType,
@@ -96,5 +84,20 @@ public sealed class CloudEventMessageSerializer : IMessageSerializer
         );
 
         return new ValueTask<CloudEventEnvelope>(envelope);
+    }
+
+    private string ResolveType(Type runtimeType)
+    {
+        try
+        {
+            return _registry.GetDiscriminator(runtimeType);
+        }
+        catch (MessageContractNotRegisteredException exception)
+        {
+            throw new CloudEventMetadataException(
+                CloudEventAttributeNames.Type,
+                $"Register the runtime message type '{exception.MessageType}' with MessageContractRegistryBuilder.Map<T>(...) or MapOutbound<T>(...)."
+            );
+        }
     }
 }

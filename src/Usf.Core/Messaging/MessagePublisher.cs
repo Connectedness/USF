@@ -92,10 +92,10 @@ public sealed class MessagePublisher : IMessagePublisher
         }
 
         var resolvedTarget = target ?? _outboundTopology.GetRequiredTarget<T>();
-        var messageTypeName = GetRequiredDiscriminator(message.GetType());
+        var discriminator = GetRequiredDiscriminator(message.GetType());
         await PublishWithDiagnosticsAsync(
             "usf.outbound.publish",
-            messageTypeName,
+            discriminator,
             resolvedTarget,
             async () =>
             {
@@ -108,7 +108,8 @@ public sealed class MessagePublisher : IMessagePublisher
                     );
                 }
 
-                await typedTarget.PublishAsync(message, in metadata, cancellationToken).ConfigureAwait(false);
+                await typedTarget.PublishAsync(message, in metadata, discriminator, cancellationToken)
+                   .ConfigureAwait(false);
             }
         ).ConfigureAwait(false);
     }

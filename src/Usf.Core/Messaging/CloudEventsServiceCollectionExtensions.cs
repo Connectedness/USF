@@ -1,7 +1,7 @@
 using System;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
-using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Options;
 using Usf.Core.Messaging.Serialization;
 
 namespace Usf.Core.Messaging;
@@ -29,21 +29,26 @@ public static class CloudEventsServiceCollectionExtensions
             throw new ArgumentNullException(nameof(configureContracts));
         }
 
-        CloudEventsOptions options = new ();
-        configureOptions(options);
         MessageContractRegistryBuilder registryBuilder = new ();
         configureContracts(registryBuilder);
         var registry = registryBuilder.Build();
 
-        services.TryAddSingleton(options);
+        services.AddOptions<CloudEventsOptions>()
+           .Configure(configureOptions)
+           .Validate(
+                static options => CloudEventsOptionsValidation.IsValidSource(options.Source),
+                "CloudEventsOptions.Source must be a non-empty URI-reference. Configure CloudEventsOptions.Source or pass a per-call CloudEventMetadata.Source override."
+            )
+           .ValidateOnStart();
+        services.TryAddSingleton(
+            static serviceProvider => serviceProvider.GetRequiredService<IOptions<CloudEventsOptions>>().Value
+        );
         services.TryAddSingleton(registry);
         services.TryAddSingleton<IPayloadCodec, Utf8JsonPayloadCodec>();
         services.TryAddSingleton<CloudEventMessageSerializer>();
         services.TryAddSingleton<IMessageSerializer>(
             static serviceProvider => serviceProvider.GetRequiredService<CloudEventMessageSerializer>()
         );
-        services.TryAddSingleton<IOutboundTopologyValidator, MessageContractOutboundTopologyValidator>();
-        services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, CloudEventsOptionsHostedService>());
 
         return services;
     }

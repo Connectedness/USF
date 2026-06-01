@@ -1039,6 +1039,7 @@ public sealed class RabbitMqChannelGroupTests
         public ValueTask<CloudEventEnvelope> SerializeAsync<T>(
             T message,
             in CloudEventMetadata metadata,
+            string? type,
             CancellationToken cancellationToken = default
         )
         {

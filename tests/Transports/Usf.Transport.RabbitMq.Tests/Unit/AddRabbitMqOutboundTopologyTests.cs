@@ -1,9 +1,7 @@
 using System;
-using System.Linq;
-using System.Threading.Tasks;
 using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Options;
 using RabbitMQ.Client;
 using Usf.Core.Messaging;
 using Usf.Core.Messaging.Errors;
@@ -35,7 +33,20 @@ public sealed class AddRabbitMqOutboundTopologyTests
     }
 
     [Fact]
-    public async Task OutboundTopologyHostedService_StartAsyncRejectsUnregisteredTypedTargetBeforeProvisioning()
+    public void AddCloudEvents_ValidatesSourceWhenOptionsAreResolved()
+    {
+        var services = new ServiceCollection();
+        services.AddCloudEvents(options => options.Source = "   ", static _ => { });
+        using var serviceProvider = services.BuildServiceProvider();
+
+        // ReSharper disable once AccessToDisposedClosure -- act is called before disposal
+        Action act = () => _ = serviceProvider.GetRequiredService<IOptions<CloudEventsOptions>>().Value;
+
+        act.Should().Throw<OptionsValidationException>();
+    }
+
+    [Fact]
+    public void Compile_RejectsUnregisteredTypedTargetWhenTopologyIsCompiled()
     {
         var services = new ServiceCollection();
         services.AddCloudEvents(options => options.Source = "/tests", static _ => { });
@@ -52,16 +63,44 @@ public sealed class AddRabbitMqOutboundTopologyTests
                 );
             }
         );
-        await using var serviceProvider = services.BuildServiceProvider();
-        var hostedService = serviceProvider
-           .GetServices<IHostedService>()
-           .OfType<OutboundTopologyHostedService>()
-           .Single();
+        using var serviceProvider = services.BuildServiceProvider();
 
-        var action = async () => await hostedService.StartAsync(TestContext.Current.CancellationToken);
+        // ReSharper disable once AccessToDisposedClosure -- act is called before disposal
+        Action action = () => _ = serviceProvider.GetRequiredService<IOutboundTopology>();
 
-        var exception = (await action.Should().ThrowAsync<OutboundTopologyValidationException>()).Which;
+        var exception = action.Should().Throw<OutboundTopologyValidationException>().Which;
         exception.ValidationErrors.Should().ContainSingle().Which.Should().Be(
+            "Outbound target 'Usf.Transport.RabbitMq.Tests.TestSupport.ValidationMessageA' publishes unregistered CloudEvents message type 'Usf.Transport.RabbitMq.Tests.TestSupport.ValidationMessageA'. Register its canonical discriminator with MessageContractRegistryBuilder.Map<T>(...) or MapOutbound<T>(...)."
+        );
+    }
+
+    [Fact]
+    public void Compile_AggregatesStructuralAndMessageContractErrorsIntoSingleException()
+    {
+        var services = new ServiceCollection();
+        services.AddCloudEvents(options => options.Source = "/tests", static _ => { });
+        services.AddRabbitMqOutboundTopology(
+            builder =>
+            {
+                builder.UseConnectionFactory(static _ => new ConnectionFactory());
+                builder.Exchange("orders", ExchangeType.Fanout);
+                builder.Publish<ValidationMessageA>(
+                    target => target
+                       .ToFanoutAddress("missing-address")
+                       .WithSerializer<CloudEventMessageSerializer>()
+                );
+            }
+        );
+        using var serviceProvider = services.BuildServiceProvider();
+
+        // ReSharper disable once AccessToDisposedClosure -- act is called before disposal
+        Action action = () => _ = serviceProvider.GetRequiredService<IOutboundTopology>();
+
+        var exception = action.Should().Throw<OutboundTopologyValidationException>().Which;
+        exception.ValidationErrors.Should().Contain(
+            "Outbound target for message 'Usf.Transport.RabbitMq.Tests.TestSupport.ValidationMessageA' references unknown address 'missing-address'."
+        );
+        exception.ValidationErrors.Should().Contain(
             "Outbound target 'Usf.Transport.RabbitMq.Tests.TestSupport.ValidationMessageA' publishes unregistered CloudEvents message type 'Usf.Transport.RabbitMq.Tests.TestSupport.ValidationMessageA'. Register its canonical discriminator with MessageContractRegistryBuilder.Map<T>(...) or MapOutbound<T>(...)."
         );
     }
