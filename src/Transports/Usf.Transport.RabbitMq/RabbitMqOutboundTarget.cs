@@ -234,7 +234,7 @@ public abstract class RabbitMqOutboundTarget<TMessage> : OutboundTarget<TMessage
 
         var extensionCount = envelope.Extensions?.Count ?? 0;
         Dictionary<string, object?> headers = new (
-            routeHeaders.Count + extensionCount + 7,
+            routeHeaders.Count + extensionCount + 10, // +10 adjusted for tracing
             StringComparer.Ordinal
         );
 
