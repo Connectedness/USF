@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Reflection;
 using System.Threading;
@@ -526,6 +527,122 @@ public sealed class RabbitMqChannelGroupTests
            .WhoseValue.Should()
            .Be("00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01");
         channel.LastPublishedBody.ToArray().Should().Equal("body"u8.ToArray());
+    }
+
+    [Fact]
+    public async Task PublishMessageAsync_InjectsProducerTraceContextAfterRouteHeaders()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var channel = new TestRabbitMqChannel();
+        await using var channelGroup = new RabbitMqChannelGroup(
+            "group",
+            1,
+            _ => Task.FromResult(channel.Object)
+        );
+        var target = new RabbitMqHeadersOutboundTarget<ValidationMessageA>(
+            "target",
+            RabbitMqCloudEventsTestFactory.CreateSerializer(),
+            channelGroup,
+            "exchange",
+            false,
+            new Dictionary<string, object?>(StringComparer.Ordinal)
+            {
+                ["traceparent"] = "route-traceparent",
+                ["tracestate"] = "route-tracestate",
+                ["baggage"] = "route-baggage",
+                ["tenant"] = "tenant-route"
+            }
+        );
+        var publisher = new MessagePublisher(
+            new OutboundTopology(
+                new Dictionary<Type, OutboundTarget>(),
+                new Dictionary<string, OutboundTarget>(StringComparer.Ordinal)
+            ),
+            RabbitMqCloudEventsTestFactory.CreateRegistry()
+        );
+        Activity? producerActivity = null;
+        using var parentActivity = new Activity("parent").SetIdFormat(ActivityIdFormat.W3C);
+        parentActivity.TraceStateString = "vendor=value";
+        parentActivity.AddBaggage("tenant", "tenant-activity").Start();
+        using var listener = new ActivityListener
+        {
+            ShouldListenTo = source => source.Name == OutboundDiagnostics.ActivitySource.Name,
+            Sample = static (ref _) => ActivitySamplingResult.AllData,
+            ActivityStarted = activity =>
+            {
+                if (activity.OperationName == "usf.outbound.publish" &&
+                    activity.TraceId == parentActivity.TraceId &&
+                    activity.ParentSpanId == parentActivity.SpanId)
+                {
+                    producerActivity = activity;
+                }
+            }
+        };
+        ActivitySource.AddActivityListener(listener);
+
+        await publisher.PublishMessageAsync(new ValidationMessageA("value"), target, cancellationToken);
+
+        producerActivity.Should().NotBeNull();
+        producerActivity!.Kind.Should().Be(ActivityKind.Producer);
+        producerActivity.ParentSpanId.Should().Be(parentActivity.SpanId);
+        channel.LastPublishedProperties.Should().NotBeNull();
+        channel.LastPublishedProperties!.Headers.Should().NotBeNull();
+        var headers = channel.LastPublishedProperties.Headers!;
+        headers.Should().ContainKey("traceparent").WhoseValue.Should().Be(producerActivity.Id);
+        headers.Should().ContainKey("tracestate").WhoseValue.Should().Be("vendor=value");
+        headers.Should().ContainKey("baggage");
+        headers["baggage"].Should().BeOfType<string>()
+           .Which.Replace(" ", string.Empty).Should().Be("tenant=tenant-activity");
+        headers.Should().ContainKey("tenant").WhoseValue.Should().Be("tenant-route");
+        headers.Should().NotContainKey("cloudEvents:traceparent");
+    }
+
+    [Fact]
+    public async Task PublishRawAsync_DoesNotInjectCurrentTraceContext()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var channel = new TestRabbitMqChannel();
+        await using var channelGroup = new RabbitMqChannelGroup(
+            "group",
+            1,
+            _ => Task.FromResult(channel.Object)
+        );
+        var target = new RabbitMqFanoutOutboundTarget<ValidationMessageA>(
+            "target",
+            RabbitMqCloudEventsTestFactory.CreateSerializer(),
+            channelGroup,
+            "exchange",
+            false
+        );
+        var publisher = new MessagePublisher(
+            new OutboundTopology(
+                new Dictionary<Type, OutboundTarget>(),
+                new Dictionary<string, OutboundTarget>(StringComparer.Ordinal)
+            ),
+            RabbitMqCloudEventsTestFactory.CreateRegistry()
+        );
+        SerializedMessage message = new (
+            "body"u8.ToArray(),
+            null,
+            null,
+            new Dictionary<string, string?>(StringComparer.Ordinal)
+            {
+                ["tenant"] = "tenant-7"
+            },
+            null,
+            null
+        );
+        using var activity = new Activity("raw")
+           .SetIdFormat(ActivityIdFormat.W3C)
+           .Start();
+
+        await publisher.PublishRawAsync(message, target, cancellationToken);
+
+        channel.LastPublishedProperties.Should().NotBeNull();
+        channel.LastPublishedProperties!.Headers.Should().ContainKey("tenant")
+           .WhoseValue.Should()
+           .Be("tenant-7");
+        channel.LastPublishedProperties.Headers.Should().NotContainKey("traceparent");
     }
 
     [Fact]

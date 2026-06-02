@@ -267,6 +267,8 @@ public abstract class RabbitMqOutboundTarget<TMessage> : OutboundTarget<TMessage
             headers[GetCloudEventsHeaderName(CloudEventAttributeNames.DataSchema)] = envelope.DataSchema;
         }
 
+        TraceContextHeaders.Inject(headers);
+
         properties.Headers = headers;
         return properties;
     }

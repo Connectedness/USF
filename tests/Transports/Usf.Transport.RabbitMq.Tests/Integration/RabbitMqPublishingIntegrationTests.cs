@@ -139,15 +139,35 @@ public sealed class RabbitMqPublishingIntegrationTests
 
             var publisher = serviceProvider.GetRequiredService<IMessagePublisher>();
             var targetRegistry = serviceProvider.GetRequiredService<IOutboundTargetRegistry>();
+            Activity? directProducerActivity = null;
+            var directParentTraceId = default(ActivityTraceId);
+            using var listener = new ActivityListener
+            {
+                ShouldListenTo = source => source.Name == OutboundDiagnostics.ActivitySource.Name,
+                Sample = static (ref _) => ActivitySamplingResult.AllData,
+                ActivityStarted = activity =>
+                {
+                    if (activity.OperationName == "usf.outbound.publish" && activity.TraceId == directParentTraceId)
+                    {
+                        directProducerActivity = activity;
+                    }
+                }
+            };
+            ActivitySource.AddActivityListener(listener);
 
             var directId = Guid.Parse("7e8ee037-b02f-4c6f-a0ed-9530a342da45");
             var directTime = new DateTimeOffset(2026, 5, 31, 12, 34, 56, TimeSpan.Zero);
             CloudEventMetadata directMetadata = new (directId, directTime, "order-42");
-            await publisher.PublishMessageAsync(
-                new RabbitMqPublishMessage(42, "created"),
-                in directMetadata,
-                cancellationToken: cancellationToken
-            );
+            using (var directParentActivity = new Activity("direct-parent").SetIdFormat(ActivityIdFormat.W3C).Start())
+            {
+                directParentTraceId = directParentActivity.TraceId;
+                await publisher.PublishMessageAsync(
+                    new RabbitMqPublishMessage(42, "created"),
+                    in directMetadata,
+                    cancellationToken: cancellationToken
+                );
+            }
+
             await publisher.PublishMessageAsync(
                 new RabbitMqPublishMessage(43, "topic"),
                 targetRegistry.GetRequiredTarget("topic-target"),
@@ -216,6 +236,12 @@ public sealed class RabbitMqPublishingIntegrationTests
                .Should().Be("order-42");
             ExtractHeaderValue(directMessage.BasicProperties.Headers!, "cloudEvents:dataschema")
                .Should().Be("/schemas/rabbitmq-publish");
+            directProducerActivity.Should().NotBeNull();
+            var traceParent = ExtractHeaderValue(directMessage.BasicProperties.Headers!, "traceparent");
+            ActivityContext.TryParse(traceParent, traceState: null, out var traceContext).Should().BeTrue();
+            traceContext.TraceId.Should().Be(directProducerActivity!.TraceId);
+            traceContext.SpanId.Should().Be(directProducerActivity.SpanId);
+            directMessage.BasicProperties.Headers.Should().NotContainKey("cloudEvents:traceparent");
 
             headersMessage.BasicProperties.Should().NotBeNull();
             headersMessage.BasicProperties.Headers.Should().NotBeNull();
