@@ -11,19 +11,21 @@ public static class RabbitMqCloudEventsTestFactory
     public const string ValidationMessageADiscriminator = "tests.rabbitmq.validation-a";
     public const string ValidationMessageBDiscriminator = "tests.rabbitmq.validation-b";
 
-    public static IServiceCollection AddTestCloudEvents(this IServiceCollection services)
+    public static UsfBuilder AddTestCloudEvents(this IServiceCollection services)
     {
-        return services.AddCloudEvents(
-            options => options.Source = "/tests/rabbitmq",
-            contracts =>
-            {
-                contracts.Map<RabbitMqAuditMessage>(AuditMessageDiscriminator);
-                contracts.Map<RabbitMqPublishMessage>(PublishMessageDiscriminator)
-                   .WithDataSchema("/schemas/rabbitmq-publish");
-                contracts.Map<ValidationMessageA>(ValidationMessageADiscriminator);
-                contracts.Map<ValidationMessageB>(ValidationMessageBDiscriminator);
-            }
-        );
+        return services
+           .AddUsf()
+           .UseCloudEvents(options => options.Source = "/tests/rabbitmq")
+           .MapMessageContracts(
+                contracts =>
+                {
+                    contracts.Map<RabbitMqAuditMessage>(AuditMessageDiscriminator);
+                    contracts.Map<RabbitMqPublishMessage>(PublishMessageDiscriminator)
+                       .WithDataSchema("/schemas/rabbitmq-publish");
+                    contracts.Map<ValidationMessageA>(ValidationMessageADiscriminator);
+                    contracts.Map<ValidationMessageB>(ValidationMessageBDiscriminator);
+                }
+            );
     }
 
     public static IMessageContractRegistry CreateRegistry()
@@ -40,7 +42,6 @@ public static class RabbitMqCloudEventsTestFactory
     public static CloudEventMessageSerializer CreateSerializer()
     {
         return new CloudEventMessageSerializer(
-            CreateRegistry(),
             new Utf8JsonPayloadCodec(),
             new CloudEventsOptions
             {

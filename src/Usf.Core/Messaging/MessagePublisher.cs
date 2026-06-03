@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Extensions.DependencyInjection;
 using Usf.Abstractions;
 using Usf.Core.Messaging.Errors;
 
@@ -12,14 +13,21 @@ public sealed class MessagePublisher : IMessagePublisher
 {
     private const string SerializedMessageTypeName = "serialized";
 
-    private readonly IMessageContractRegistry _messageContractRegistry;
-    private readonly IOutboundTopology _outboundTopology;
+    private readonly IOutboundTopologyRegistry _outboundTopologyRegistry;
 
-    public MessagePublisher(IOutboundTopology outboundTopology, IMessageContractRegistry messageContractRegistry)
+    [ActivatorUtilitiesConstructor]
+    public MessagePublisher(IOutboundTopologyRegistry outboundTopologyRegistry)
     {
-        _outboundTopology = outboundTopology ?? throw new ArgumentNullException(nameof(outboundTopology));
-        _messageContractRegistry = messageContractRegistry ??
-                                   throw new ArgumentNullException(nameof(messageContractRegistry));
+        _outboundTopologyRegistry = outboundTopologyRegistry ??
+                                    throw new ArgumentNullException(nameof(outboundTopologyRegistry));
+    }
+
+    public MessagePublisher(IOutboundTopology outboundTopology)
+        : this(new SingleOutboundTopologyRegistry(outboundTopology)) { }
+
+    public TopologyPublisher ForTopology(TopologyName topologyName)
+    {
+        return new TopologyPublisher(this, topologyName);
     }
 
     public Task PublishMessageAsync<T>(
@@ -34,7 +42,7 @@ public sealed class MessagePublisher : IMessagePublisher
         }
 
         var metadata = CloudEventMetadata.From(message);
-        return PublishMessageAsync(message, in metadata, target, cancellationToken);
+        return PublishMessageAsync(message, in metadata, target, TopologyName.Default, cancellationToken);
     }
 
     public Task PublishMessageAsync<T>(
@@ -44,12 +52,49 @@ public sealed class MessagePublisher : IMessagePublisher
         CancellationToken cancellationToken = default
     )
     {
-        return PublishMessageCoreAsync(message, metadata, target, cancellationToken);
+        return PublishMessageAsync(message, in metadata, target, TopologyName.Default, cancellationToken);
     }
 
     public async Task PublishRawAsync(
         SerializedMessage message,
         OutboundTarget target,
+        CancellationToken cancellationToken = default
+    )
+    {
+        await PublishRawAsync(message, target, TopologyName.Default, cancellationToken).ConfigureAwait(false);
+    }
+
+    public Task PublishMessageAsync<T>(
+        T message,
+        OutboundTarget? target,
+        TopologyName topologyName,
+        CancellationToken cancellationToken = default
+    ) where T : ICloudEvent
+    {
+        if (message is null)
+        {
+            throw new ArgumentNullException(nameof(message));
+        }
+
+        var metadata = CloudEventMetadata.From(message);
+        return PublishMessageAsync(message, in metadata, target, topologyName, cancellationToken);
+    }
+
+    public Task PublishMessageAsync<T>(
+        T message,
+        in CloudEventMetadata metadata,
+        OutboundTarget? target,
+        TopologyName topologyName,
+        CancellationToken cancellationToken = default
+    )
+    {
+        return PublishMessageCoreAsync(message, metadata, target, topologyName, cancellationToken);
+    }
+
+    public async Task PublishRawAsync(
+        SerializedMessage message,
+        OutboundTarget target,
+        TopologyName topologyName,
         CancellationToken cancellationToken = default
     )
     {
@@ -68,12 +113,10 @@ public sealed class MessagePublisher : IMessagePublisher
             throw new ArgumentException("The serialized message must provide headers.", nameof(message));
         }
 
-        var messageTypeName = target.MessageType is null ?
-            SerializedMessageTypeName :
-            GetMessageTypeName(target.MessageType);
+        ValidateExplicitTargetTopology(target, topologyName);
         await PublishWithDiagnosticsAsync(
             "usf.outbound.publish",
-            messageTypeName,
+            GetMessageTypeName(target),
             target,
             async () => await target.PublishSerializedAsync(message, cancellationToken).ConfigureAwait(false)
         ).ConfigureAwait(false);
@@ -83,6 +126,7 @@ public sealed class MessagePublisher : IMessagePublisher
         T message,
         CloudEventMetadata metadata,
         OutboundTarget? target,
+        TopologyName topologyName,
         CancellationToken cancellationToken
     )
     {
@@ -91,26 +135,34 @@ public sealed class MessagePublisher : IMessagePublisher
             throw new ArgumentNullException(nameof(message));
         }
 
-        var resolvedTarget = target ?? _outboundTopology.GetRequiredTarget<T>();
-        var discriminator = GetRequiredDiscriminator(message.GetType());
+        var resolvedTarget = target ?? _outboundTopologyRegistry
+           .GetRequiredTopology(topologyName)
+           .GetRequiredTarget<T>();
+        ValidateExplicitTargetTopology(resolvedTarget, topologyName, target is not null);
+        if (resolvedTarget is not OutboundTarget<T> typedTarget)
+        {
+            throw new OutboundTargetTypeMismatchException(
+                resolvedTarget.Name,
+                typeof(T),
+                resolvedTarget.MessageType
+            );
+        }
+
+        var runtimeType = message.GetType();
+        var discriminator = typedTarget.GetRequiredDiscriminator(runtimeType);
+        var dataSchema = typedTarget.GetDataSchema(runtimeType);
         await PublishWithDiagnosticsAsync(
             "usf.outbound.publish",
             discriminator,
             resolvedTarget,
-            async () =>
-            {
-                if (resolvedTarget is not OutboundTarget<T> typedTarget)
-                {
-                    throw new OutboundTargetTypeMismatchException(
-                        resolvedTarget.Name,
-                        typeof(T),
-                        resolvedTarget.MessageType
-                    );
-                }
-
-                await typedTarget.PublishAsync(message, in metadata, discriminator, cancellationToken)
-                   .ConfigureAwait(false);
-            }
+            async () => await typedTarget.PublishAsync(
+                    message,
+                    in metadata,
+                    discriminator,
+                    dataSchema,
+                    cancellationToken
+                )
+               .ConfigureAwait(false)
         ).ConfigureAwait(false);
     }
 
@@ -230,24 +282,30 @@ public sealed class MessagePublisher : IMessagePublisher
         return elapsedTicks * 1000d / Stopwatch.Frequency;
     }
 
-    private static string GetMessageTypeName(Type messageType)
+    private static string GetMessageTypeName(OutboundTarget target)
     {
-        return messageType.FullName ?? messageType.Name;
+        if (target.MessageType is null)
+        {
+            return SerializedMessageTypeName;
+        }
+
+        return target.GetDiagnosticMessageTypeName(target.MessageType);
     }
 
-    private string GetRequiredDiscriminator(Type messageType)
+    private static void ValidateExplicitTargetTopology(
+        OutboundTarget target,
+        TopologyName topologyName,
+        bool hasExplicitTarget = true
+    )
     {
-        try
+        if (!hasExplicitTarget || topologyName == TopologyName.Default || target.TopologyName == topologyName)
         {
-            return _messageContractRegistry.GetDiscriminator(messageType);
+            return;
         }
-        catch (MessageContractNotRegisteredException exception)
-        {
-            throw new CloudEventMetadataException(
-                "type",
-                $"Register the runtime message type '{exception.MessageType}' with MessageContractRegistryBuilder.Map<T>(...) or MapOutbound<T>(...)."
-            );
-        }
+
+        throw new InvalidOperationException(
+            $"Outbound target '{target.Name}' belongs to outbound topology '{target.TopologyName.Value}', but publish requested outbound topology '{topologyName.Value}'."
+        );
     }
 
     private static string GetDeliveryFailureReasonName(MessageDeliveryFailureReason reason)

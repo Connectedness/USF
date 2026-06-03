@@ -42,8 +42,8 @@ public sealed class RabbitMqPublishingIntegrationTests
             );
 
             var services = new ServiceCollection();
-            services.AddTestCloudEvents();
-            services.AddRabbitMqOutboundTopology(
+            services.AddTestCloudEvents()
+               .AddRabbitMqOutboundTopology(
                 builder =>
                 {
                     builder.UseConnectionFactory(
@@ -267,6 +267,122 @@ public sealed class RabbitMqPublishingIntegrationTests
     }
 
     [Fact]
+    public async Task PublishMessageAsync_PublishesSameClrTypeWithPerTopologyContracts()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var container = new RabbitMqBuilder("public.ecr.aws/docker/library/rabbitmq:3.13-management").Build();
+        await container.StartAsync(cancellationToken);
+
+        try
+        {
+            TopologyName legacy = new ("legacy");
+            TopologyName modern = new ("modern");
+            var services = new ServiceCollection();
+            services
+               .AddUsf()
+               .UseCloudEvents(options => options.Source = "/tests/rabbitmq")
+               .MapMessageContracts(
+                    contracts => contracts.Map<RabbitMqPublishMessage>("tests.rabbitmq.publish.canonical")
+                       .WithDataSchema("/schemas/canonical")
+                )
+               .AddRabbitMqOutboundTopology(
+                    legacy,
+                    builder =>
+                    {
+                        builder.MapMessageContracts(
+                            contracts => contracts.MapOutbound<RabbitMqPublishMessage>("tests.rabbitmq.publish.legacy")
+                               .WithDataSchema("/schemas/legacy")
+                        );
+                        builder.UseConnectionFactory(
+                            _ => new ConnectionFactory
+                            {
+                                Uri = new Uri(container.GetConnectionString())
+                            }
+                        );
+                        builder.Exchange("legacy-fanout", ExchangeType.Fanout);
+                        builder.Address("legacy-address", "legacy-fanout");
+                        builder.Queue("legacy-queue");
+                        builder.QueueBinding("legacy-fanout", "legacy-queue");
+                        builder.Publish<RabbitMqPublishMessage>(
+                            target => target
+                               .ToFanoutAddress("legacy-address")
+                               .WithSerializer<CloudEventMessageSerializer>()
+                        );
+                    }
+                )
+               .AddRabbitMqOutboundTopology(
+                    modern,
+                    builder =>
+                    {
+                        builder.MapMessageContracts(
+                            contracts => contracts.MapOutbound<RabbitMqPublishMessage>("tests.rabbitmq.publish.modern")
+                               .WithDataSchema("/schemas/modern")
+                        );
+                        builder.UseConnectionFactory(
+                            _ => new ConnectionFactory
+                            {
+                                Uri = new Uri(container.GetConnectionString())
+                            }
+                        );
+                        builder.Exchange("modern-fanout", ExchangeType.Fanout);
+                        builder.Address("modern-address", "modern-fanout");
+                        builder.Queue("modern-queue");
+                        builder.QueueBinding("modern-fanout", "modern-queue");
+                        builder.Publish<RabbitMqPublishMessage>(
+                            target => target
+                               .ToFanoutAddress("modern-address")
+                               .WithSerializer<CloudEventMessageSerializer>()
+                        );
+                    }
+                );
+
+            await using var serviceProvider = services.BuildServiceProvider();
+
+            var hostedService = serviceProvider.GetServices<IHostedService>().Should().ContainSingle().Which;
+            await hostedService.StartAsync(cancellationToken);
+
+            var legacyTopology = serviceProvider.GetRequiredKeyedService<RabbitMqOutboundTopology>(legacy);
+            var modernTopology = serviceProvider.GetRequiredKeyedService<RabbitMqOutboundTopology>(modern);
+            var legacyConnection = await legacyTopology.GetConnectionAsync(cancellationToken);
+            var modernConnection = await modernTopology.GetConnectionAsync(cancellationToken);
+            legacyConnection.Should().NotBeSameAs(modernConnection);
+
+            var publisher = serviceProvider.GetRequiredService<IMessagePublisher>();
+            await publisher
+               .ForTopology(legacy)
+               .PublishMessageAsync(new RabbitMqPublishMessage(100, "legacy"), cancellationToken: cancellationToken);
+            await publisher
+               .ForTopology(modern)
+               .PublishMessageAsync(new RabbitMqPublishMessage(200, "modern"), cancellationToken: cancellationToken);
+
+            var connectionFactory = new ConnectionFactory
+            {
+                Uri = new Uri(container.GetConnectionString())
+            };
+            await using var connection = await connectionFactory.CreateConnectionAsync(cancellationToken);
+            await using var channel = await connection.CreateChannelAsync(cancellationToken: cancellationToken);
+
+            var legacyMessage = await GetRequiredMessageAsync(channel, "legacy-queue", cancellationToken);
+            var modernMessage = await GetRequiredMessageAsync(channel, "modern-queue", cancellationToken);
+
+            Encoding.UTF8.GetString(legacyMessage.Body.ToArray()).Should().Be("{\"Id\":100,\"Name\":\"legacy\"}");
+            ExtractHeaderValue(legacyMessage.BasicProperties.Headers!, "cloudEvents:type")
+               .Should().Be("tests.rabbitmq.publish.legacy");
+            ExtractHeaderValue(legacyMessage.BasicProperties.Headers!, "cloudEvents:dataschema")
+               .Should().Be("/schemas/legacy");
+            Encoding.UTF8.GetString(modernMessage.Body.ToArray()).Should().Be("{\"Id\":200,\"Name\":\"modern\"}");
+            ExtractHeaderValue(modernMessage.BasicProperties.Headers!, "cloudEvents:type")
+               .Should().Be("tests.rabbitmq.publish.modern");
+            ExtractHeaderValue(modernMessage.BasicProperties.Headers!, "cloudEvents:dataschema")
+               .Should().Be("/schemas/modern");
+        }
+        finally
+        {
+            await container.DisposeAsync();
+        }
+    }
+
+    [Fact]
     public async Task PublishRawAsync_PublishesCallerOwnedEnvelopeWithoutUsfSerialization()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
@@ -276,8 +392,8 @@ public sealed class RabbitMqPublishingIntegrationTests
         try
         {
             var services = new ServiceCollection();
-            services.AddTestCloudEvents();
-            services.AddRabbitMqOutboundTopology(
+            services.AddTestCloudEvents()
+               .AddRabbitMqOutboundTopology(
                 builder =>
                 {
                     builder.UseConnectionFactory(
@@ -362,8 +478,8 @@ public sealed class RabbitMqPublishingIntegrationTests
         try
         {
             var services = new ServiceCollection();
-            services.AddTestCloudEvents();
-            services.AddRabbitMqOutboundTopology(
+            services.AddTestCloudEvents()
+               .AddRabbitMqOutboundTopology(
                 builder =>
                 {
                     builder.UseConnectionFactory(
@@ -421,8 +537,8 @@ public sealed class RabbitMqPublishingIntegrationTests
         try
         {
             var services = new ServiceCollection();
-            services.AddTestCloudEvents();
-            services.AddRabbitMqOutboundTopology(
+            services.AddTestCloudEvents()
+               .AddRabbitMqOutboundTopology(
                 builder =>
                 {
                     builder.UseConnectionFactory(
@@ -501,8 +617,8 @@ public sealed class RabbitMqPublishingIntegrationTests
             var connectionString = container.GetConnectionString();
             var mappedPort = container.GetMappedPublicPort(5672);
             var services = new ServiceCollection();
-            services.AddTestCloudEvents();
-            services.AddRabbitMqOutboundTopology(
+            services.AddTestCloudEvents()
+               .AddRabbitMqOutboundTopology(
                 builder =>
                 {
                     builder.UseConnectionFactory(

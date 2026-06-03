@@ -4,22 +4,19 @@ using System.Threading;
 using System.Threading.Tasks;
 using RabbitMQ.Client;
 using Usf.Core.Messaging;
-using Usf.Core.Messaging.Errors;
 using Usf.Transport.RabbitMq.Configuration;
 
 namespace Usf.Transport.RabbitMq;
 
 public sealed class RabbitMqOutboundTopology : IAsyncDisposable, IDisposable
 {
-    private readonly SemaphoreSlim _channelBudgetValidationGate = new (1, 1);
+    private readonly RabbitMqChannelSource _channelSource;
     private readonly RabbitMqConnectionProvider _connectionProvider;
-    private readonly int _worstCaseChannelCount;
-    private readonly string _worstCaseChannelCountDescription;
-    private int _channelBudgetValidated;
     private int _disposed;
 
     public RabbitMqOutboundTopology(
         OutboundTopology outboundTopology,
+        IMessageContractRegistry messageContractRegistry,
         IReadOnlyList<RabbitMqExchangeDefinition> exchanges,
         IReadOnlyList<RabbitMqQueueDefinition> queues,
         IReadOnlyList<RabbitMqBindingDefinition> bindings,
@@ -27,11 +24,12 @@ public sealed class RabbitMqOutboundTopology : IAsyncDisposable, IDisposable
         IReadOnlyList<RabbitMqChannelGroup> channelGroups,
         IReadOnlyList<OutboundTarget> targets,
         RabbitMqConnectionProvider connectionProvider,
-        int worstCaseChannelCount,
-        string worstCaseChannelCountDescription
+        RabbitMqChannelSource channelSource
     )
     {
         OutboundTopology = outboundTopology ?? throw new ArgumentNullException(nameof(outboundTopology));
+        MessageContractRegistry = messageContractRegistry ??
+                                  throw new ArgumentNullException(nameof(messageContractRegistry));
         Exchanges = exchanges ?? throw new ArgumentNullException(nameof(exchanges));
         Queues = queues ?? throw new ArgumentNullException(nameof(queues));
         Bindings = bindings ?? throw new ArgumentNullException(nameof(bindings));
@@ -39,14 +37,12 @@ public sealed class RabbitMqOutboundTopology : IAsyncDisposable, IDisposable
         ChannelGroups = channelGroups ?? throw new ArgumentNullException(nameof(channelGroups));
         Targets = targets ?? throw new ArgumentNullException(nameof(targets));
         _connectionProvider = connectionProvider ?? throw new ArgumentNullException(nameof(connectionProvider));
-        _worstCaseChannelCount = worstCaseChannelCount;
-        _worstCaseChannelCountDescription = worstCaseChannelCountDescription ??
-                                            throw new ArgumentNullException(
-                                                nameof(worstCaseChannelCountDescription)
-                                            );
+        _channelSource = channelSource ?? throw new ArgumentNullException(nameof(channelSource));
     }
 
     public OutboundTopology OutboundTopology { get; }
+
+    public IMessageContractRegistry MessageContractRegistry { get; }
 
     public IReadOnlyList<RabbitMqExchangeDefinition> Exchanges { get; }
 
@@ -72,7 +68,7 @@ public sealed class RabbitMqOutboundTopology : IAsyncDisposable, IDisposable
             await channelGroup.DisposeAsync().ConfigureAwait(false);
         }
 
-        _channelBudgetValidationGate.Dispose();
+        _channelSource.Dispose();
         await _connectionProvider.DisposeAsync().ConfigureAwait(false);
     }
 
@@ -88,79 +84,25 @@ public sealed class RabbitMqOutboundTopology : IAsyncDisposable, IDisposable
             channelGroup.Dispose();
         }
 
-        _channelBudgetValidationGate.Dispose();
+        _channelSource.Dispose();
         _connectionProvider.Dispose();
     }
 
-    public async Task<IChannel> CreateChannelAsync(CancellationToken cancellationToken = default)
+    public Task<IChannel> CreateChannelAsync(CancellationToken cancellationToken = default)
     {
-        var connection = await GetConnectionAsync(cancellationToken).ConfigureAwait(false);
-        return await connection.CreateChannelAsync(cancellationToken: cancellationToken).ConfigureAwait(false);
+        return _channelSource.CreateChannelAsync(cancellationToken);
     }
 
-    public async Task<IChannel> CreateChannelAsync(
+    public Task<IChannel> CreateChannelAsync(
         CreateChannelOptions? options,
         CancellationToken cancellationToken = default
     )
     {
-        if (options is null)
-        {
-            return await CreateChannelAsync(cancellationToken).ConfigureAwait(false);
-        }
-
-        var connection = await GetConnectionAsync(cancellationToken).ConfigureAwait(false);
-        return await connection.CreateChannelAsync(options, cancellationToken).ConfigureAwait(false);
+        return _channelSource.CreateChannelAsync(options, cancellationToken);
     }
 
-    public async Task<IConnection> GetConnectionAsync(CancellationToken cancellationToken = default)
+    public Task<IConnection> GetConnectionAsync(CancellationToken cancellationToken = default)
     {
-        var connection = await _connectionProvider.GetConnectionAsync(cancellationToken).ConfigureAwait(false);
-        await ValidateChannelBudgetOnceAsync(connection, cancellationToken).ConfigureAwait(false);
-        return connection;
-    }
-
-    private async Task ValidateChannelBudgetOnceAsync(IConnection connection, CancellationToken cancellationToken)
-    {
-        if (Volatile.Read(ref _channelBudgetValidated) != 0)
-        {
-            return;
-        }
-
-        await _channelBudgetValidationGate.WaitAsync(cancellationToken).ConfigureAwait(false);
-
-        try
-        {
-            if (Volatile.Read(ref _channelBudgetValidated) != 0)
-            {
-                return;
-            }
-
-            ValidateChannelBudget(connection);
-            Volatile.Write(ref _channelBudgetValidated, 1);
-        }
-        finally
-        {
-            _channelBudgetValidationGate.Release();
-        }
-    }
-
-    private void ValidateChannelBudget(IConnection connection)
-    {
-        if (_worstCaseChannelCount == 0 || connection.ChannelMax == 0)
-        {
-            return;
-        }
-
-        if (_worstCaseChannelCount <= connection.ChannelMax)
-        {
-            return;
-        }
-
-        throw new OutboundTopologyValidationException(
-            new List<string>
-            {
-                $"RabbitMQ outbound topology may open up to {_worstCaseChannelCount} channels ({_worstCaseChannelCountDescription}), but the broker negotiated channel_max={connection.ChannelMax}."
-            }
-        );
+        return _channelSource.GetConnectionAsync(cancellationToken);
     }
 }

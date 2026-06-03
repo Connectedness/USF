@@ -8,7 +8,7 @@ namespace Usf.Core.Messaging;
 
 public abstract class OutboundTarget
 {
-    protected OutboundTarget(string name, string transportName)
+    protected OutboundTarget(string name, string transportName, TopologyName? topologyName = null)
     {
         if (string.IsNullOrWhiteSpace(name))
         {
@@ -22,13 +22,26 @@ public abstract class OutboundTarget
 
         Name = name;
         TransportName = transportName;
+        TopologyName = topologyName ?? TopologyName.Default;
     }
 
     public virtual Type? MessageType => null;
 
     public string Name { get; }
 
+    public TopologyName TopologyName { get; }
+
     public string TransportName { get; }
+
+    public virtual string GetDiagnosticMessageTypeName(Type runtimeMessageType)
+    {
+        if (runtimeMessageType is null)
+        {
+            throw new ArgumentNullException(nameof(runtimeMessageType));
+        }
+
+        return runtimeMessageType.FullName ?? runtimeMessageType.Name;
+    }
 
     public abstract Task PublishSerializedAsync(
         SerializedMessage message,
@@ -38,15 +51,60 @@ public abstract class OutboundTarget
 
 public abstract class OutboundTarget<T> : OutboundTarget
 {
-    protected OutboundTarget(string name, string transportName, IMessageSerializer serializer)
-        : base(name, transportName)
+    protected OutboundTarget(
+        string name,
+        string transportName,
+        IMessageSerializer serializer,
+        IMessageContractRegistry messageContractRegistry,
+        TopologyName? topologyName = null
+    )
+        : base(name, transportName, topologyName)
     {
         Serializer = serializer ?? throw new ArgumentNullException(nameof(serializer));
+        MessageContractRegistry = messageContractRegistry ??
+                                  throw new ArgumentNullException(nameof(messageContractRegistry));
     }
 
     public sealed override Type MessageType => typeof(T);
 
     protected IMessageSerializer Serializer { get; }
+
+    protected IMessageContractRegistry MessageContractRegistry { get; }
+
+    public sealed override string GetDiagnosticMessageTypeName(Type runtimeMessageType)
+    {
+        return GetRequiredDiscriminator(runtimeMessageType);
+    }
+
+    public string GetRequiredDiscriminator(Type runtimeMessageType)
+    {
+        if (runtimeMessageType is null)
+        {
+            throw new ArgumentNullException(nameof(runtimeMessageType));
+        }
+
+        try
+        {
+            return MessageContractRegistry.GetDiscriminator(runtimeMessageType);
+        }
+        catch (MessageContractNotRegisteredException exception)
+        {
+            throw new CloudEventMetadataException(
+                CloudEventAttributeNames.Type,
+                $"Register the runtime message type '{exception.MessageType}' with MessageContractRegistryBuilder.Map<T>(...) or MapOutbound<T>(...)."
+            );
+        }
+    }
+
+    public string? GetDataSchema(Type runtimeMessageType)
+    {
+        if (runtimeMessageType is null)
+        {
+            throw new ArgumentNullException(nameof(runtimeMessageType));
+        }
+
+        return MessageContractRegistry.GetDataSchema(runtimeMessageType);
+    }
 
     public Task PublishAsync(T message, CancellationToken cancellationToken = default)
     {
@@ -68,23 +126,25 @@ public abstract class OutboundTarget<T> : OutboundTarget
         CancellationToken cancellationToken = default
     )
     {
-        return PublishCoreAsync(message, metadata, type: null, cancellationToken);
+        return PublishCoreAsync(message, metadata, type: null, dataSchema: null, cancellationToken);
     }
 
     public Task PublishAsync(
         T message,
         in CloudEventMetadata metadata,
         string type,
+        string? dataSchema,
         CancellationToken cancellationToken
     )
     {
-        return PublishCoreAsync(message, metadata, type, cancellationToken);
+        return PublishCoreAsync(message, metadata, type, dataSchema, cancellationToken);
     }
 
     private async Task PublishCoreAsync(
         T message,
         CloudEventMetadata metadata,
         string? type,
+        string? dataSchema,
         CancellationToken cancellationToken
     )
     {
@@ -93,17 +153,26 @@ public abstract class OutboundTarget<T> : OutboundTarget
             throw new ArgumentNullException(nameof(message));
         }
 
+        var runtimeType = message.GetType();
+        var resolvedType = type ?? GetRequiredDiscriminator(runtimeType);
+        var resolvedDataSchema = dataSchema ?? GetDataSchema(runtimeType);
         CloudEventEnvelope envelope;
 
         try
         {
-            envelope = await Serializer.SerializeAsync(message, in metadata, type, cancellationToken)
+            envelope = await Serializer.SerializeAsync(
+                    message,
+                    in metadata,
+                    resolvedType,
+                    resolvedDataSchema,
+                    cancellationToken
+                )
                .ConfigureAwait(false);
         }
         catch (Exception exception) when (exception is not OperationCanceledException &&
                                           exception is not MessageSerializationException)
         {
-            throw new MessageSerializationException(typeof(T), exception);
+            throw new MessageSerializationException(runtimeType, exception);
         }
 
         await PublishTypedCloudEventAsync(message, envelope, cancellationToken).ConfigureAwait(false);

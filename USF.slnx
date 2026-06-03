@@ -28,6 +28,9 @@
         <Project Path="src/Usf.Abstractions/Usf.Abstractions.csproj" />
         <Project Path="src/Usf.Core/Usf.Core.csproj" />
     </Folder>
+    <Folder Name="/benchmarks/">
+        <Project Path="benchmarks/Usf.Benchmarks/Usf.Benchmarks.csproj" />
+    </Folder>
     <Folder Name="/src/Transports/">
         <Project Path="src/Transports/Usf.Transport.RabbitMq/Usf.Transport.RabbitMq.csproj" />
     </Folder>

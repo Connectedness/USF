@@ -8,7 +8,15 @@ namespace Usf.Core.Tests.Messaging.TestSupport;
 public sealed class RecordingTarget<TMessage> : OutboundTarget<TMessage>
 {
     public RecordingTarget(string name, IMessageSerializer serializer)
-        : base(name, "test", serializer) { }
+        : this(name, serializer, CloudEventsTestFactory.CreateRegistry()) { }
+
+    public RecordingTarget(
+        string name,
+        IMessageSerializer serializer,
+        IMessageContractRegistry messageContractRegistry,
+        TopologyName? topologyName = null
+    )
+        : base(name, "test", serializer, messageContractRegistry, topologyName) { }
 
     public List<TMessage> Messages { get; } = [];
 

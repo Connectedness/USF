@@ -2,11 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
-using System.Threading;
-using System.Threading.Tasks;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Abstractions;
 using RabbitMQ.Client;
 using Usf.Core.Messaging;
 using Usf.Core.Messaging.Errors;
@@ -14,32 +10,53 @@ using Usf.Transport.RabbitMq.Configuration;
 
 namespace Usf.Transport.RabbitMq;
 
-public static class RabbitMqOutboundTopologyCompiler
+public sealed class RabbitMqOutboundTopologyCompiler
 {
     private static readonly MethodInfo CreateTargetMethod = typeof(RabbitMqOutboundTopologyCompiler)
        .GetMethod(nameof(CreateTargetCore), BindingFlags.Static | BindingFlags.NonPublic)!;
 
-    public static RabbitMqOutboundTopology Compile(IServiceProvider serviceProvider)
+    private readonly IMessageContractRegistry _canonicalMessageContracts;
+    private readonly ILoggerFactory _loggerFactory;
+    private readonly Func<Type, IMessageSerializer?> _resolveSerializer;
+
+    public RabbitMqOutboundTopologyCompiler(
+        IMessageContractRegistry canonicalMessageContracts,
+        ILoggerFactory loggerFactory,
+        Func<Type, IMessageSerializer?> resolveSerializer
+    )
     {
-        if (serviceProvider is null)
+        _canonicalMessageContracts = canonicalMessageContracts ??
+                                     throw new ArgumentNullException(nameof(canonicalMessageContracts));
+        _loggerFactory = loggerFactory ?? throw new ArgumentNullException(nameof(loggerFactory));
+        _resolveSerializer = resolveSerializer ?? throw new ArgumentNullException(nameof(resolveSerializer));
+    }
+
+    public RabbitMqOutboundTopology Compile(
+        TopologyName topologyName,
+        RabbitMqOutboundTopologyConfiguration configuration,
+        RabbitMqConnectionProvider connectionProvider
+    )
+    {
+        if (configuration is null)
         {
-            throw new ArgumentNullException(nameof(serviceProvider));
+            throw new ArgumentNullException(nameof(configuration));
         }
 
-        var configuration = serviceProvider.GetRequiredService<RabbitMqOutboundTopologyConfiguration>();
-        var validationErrors = Validate(serviceProvider, configuration);
+        if (connectionProvider is null)
+        {
+            throw new ArgumentNullException(nameof(connectionProvider));
+        }
+
+        var effectiveMessageContracts = CreateEffectiveMessageContracts(configuration);
+        var validationErrors = Validate(configuration, effectiveMessageContracts);
 
         if (validationErrors.Count > 0)
         {
             throw new OutboundTopologyValidationException(validationErrors);
         }
 
-        RabbitMqOutboundTopology? topology = null;
-        var connectionProvider = new RabbitMqConnectionProvider(
-            cancellationToken => CreateConnectionAsync(configuration, serviceProvider, cancellationToken),
-            CreateLogger(serviceProvider, typeof(RabbitMqConnectionProvider))
-        );
-        var explicitChannelGroupsByName = new Dictionary<string, RabbitMqChannelGroup>(StringComparer.Ordinal);
+        RabbitMqChannelSource channelSource = new (connectionProvider);
+        Dictionary<string, RabbitMqChannelGroup> explicitChannelGroupsByName = new (StringComparer.Ordinal);
         List<RabbitMqChannelGroup> channelGroups = [];
 
         foreach (var channelGroupDefinition in OrderChannelGroups(configuration.ChannelGroups))
@@ -48,7 +65,7 @@ public static class RabbitMqOutboundTopologyCompiler
                 channelGroupDefinition,
                 configuration.DefaultPublisherConfirmMode,
                 configuration.DefaultPublisherConfirmTimeout,
-                () => topology!
+                channelSource
             );
             explicitChannelGroupsByName.Add(channelGroup.Name, channelGroup);
             channelGroups.Add(channelGroup);
@@ -70,11 +87,17 @@ public static class RabbitMqOutboundTopologyCompiler
                 channelGroups,
                 configuration.DefaultPublisherConfirmMode,
                 configuration.DefaultPublisherConfirmTimeout,
-                () => topology!
+                channelSource
             );
             var address = addressesByName[targetDefinition.AddressName];
             var exchangeName = exchangesByName[address.ExchangeName].Name;
-            var target = CreateTarget(targetDefinition, serviceProvider, channelGroup, exchangeName);
+            var target = CreateTarget(
+                targetDefinition,
+                topologyName,
+                effectiveMessageContracts,
+                channelGroup,
+                exchangeName
+            );
             targets.Add(target);
 
             if (string.IsNullOrWhiteSpace(targetDefinition.TargetName))
@@ -88,10 +111,12 @@ public static class RabbitMqOutboundTopologyCompiler
         }
 
         var (worstCaseChannelCount, description) = RabbitMqOutboundChannelBudget.Calculate(channelGroups);
-        LogWorstCaseChannelCount(serviceProvider, worstCaseChannelCount, description);
+        channelSource.SetChannelBudget(worstCaseChannelCount, description);
+        LogWorstCaseChannelCount(worstCaseChannelCount, description);
 
-        topology = new RabbitMqOutboundTopology(
+        return new RabbitMqOutboundTopology(
             new OutboundTopology(defaultTargetsByMessageType, targetsByName),
+            effectiveMessageContracts,
             configuration.Exchanges,
             configuration.Queues,
             configuration.Bindings,
@@ -99,34 +124,20 @@ public static class RabbitMqOutboundTopologyCompiler
             channelGroups.AsReadOnly(),
             targets.AsReadOnly(),
             connectionProvider,
-            worstCaseChannelCount,
-            description
+            channelSource
         );
-
-        return topology;
     }
 
-    private static Task<IConnection> CreateConnectionAsync(
-        RabbitMqOutboundTopologyConfiguration configuration,
-        IServiceProvider serviceProvider,
-        CancellationToken cancellationToken
+    private IMessageContractRegistry CreateEffectiveMessageContracts(
+        RabbitMqOutboundTopologyConfiguration configuration
     )
     {
-        var connectionFactory = configuration.CreateConnectionFactory?.Invoke(serviceProvider) ??
-                                throw new OutboundTopologyValidationException(
-                                    ["A RabbitMQ connection factory must be configured."]
-                                );
-
-        if (!connectionFactory.AutomaticRecoveryEnabled)
-        {
-            throw new OutboundTopologyValidationException(
-                [
-                    "RabbitMQ automatic connection recovery must be enabled. Configure ConnectionFactory.AutomaticRecoveryEnabled to true."
-                ]
+        return configuration.MessageContractDialect is null ?
+            _canonicalMessageContracts :
+            new EffectiveMessageContractRegistry(
+                _canonicalMessageContracts,
+                configuration.MessageContractDialect
             );
-        }
-
-        return connectionFactory.CreateConnectionAsync(cancellationToken);
     }
 
     private static IEnumerable<RabbitMqChannelGroupDefinition> OrderChannelGroups(
@@ -149,7 +160,7 @@ public static class RabbitMqOutboundTopologyCompiler
         RabbitMqChannelGroupDefinition definition,
         RabbitMqPublisherConfirmMode defaultPublisherConfirmMode,
         TimeSpan? defaultPublisherConfirmTimeout,
-        Func<RabbitMqOutboundTopology> getTopology
+        RabbitMqChannelSource channelSource
     )
     {
         var publisherConfirmMode = definition.PublisherConfirmMode ?? defaultPublisherConfirmMode;
@@ -157,7 +168,7 @@ public static class RabbitMqOutboundTopologyCompiler
         return new RabbitMqChannelGroup(
             definition.Name,
             definition.MaximumChannelCount,
-            async cancellationToken => await getTopology()
+            async cancellationToken => await channelSource
                .CreateChannelAsync(CreateChannelOptions(publisherConfirmMode), cancellationToken)
                .ConfigureAwait(false),
             publisherConfirmMode,
@@ -189,7 +200,7 @@ public static class RabbitMqOutboundTopologyCompiler
         ICollection<RabbitMqChannelGroup> channelGroups,
         RabbitMqPublisherConfirmMode defaultPublisherConfirmMode,
         TimeSpan? defaultPublisherConfirmTimeout,
-        Func<RabbitMqOutboundTopology> getTopology
+        RabbitMqChannelSource channelSource
     )
     {
         if (!string.IsNullOrWhiteSpace(targetDefinition.ChannelGroupName))
@@ -204,34 +215,40 @@ public static class RabbitMqOutboundTopologyCompiler
             ),
             defaultPublisherConfirmMode,
             defaultPublisherConfirmTimeout,
-            getTopology
+            channelSource
         );
         channelGroups.Add(implicitChannelGroup);
         return implicitChannelGroup;
     }
 
-    private static OutboundTarget CreateTarget(
+    private OutboundTarget CreateTarget(
         RabbitMqOutboundTargetDefinition targetDefinition,
-        IServiceProvider serviceProvider,
+        TopologyName topologyName,
+        IMessageContractRegistry messageContractRegistry,
         RabbitMqChannelGroup channelGroup,
         string exchangeName
     )
     {
+        var serializer = _resolveSerializer(targetDefinition.SerializerType!) ??
+                         throw new InvalidOperationException(
+                             $"Serializer '{targetDefinition.SerializerType}' is not registered."
+                         );
         var closedMethod = CreateTargetMethod.MakeGenericMethod(targetDefinition.MessageType);
         return (OutboundTarget) closedMethod.Invoke(
             null,
-            [targetDefinition, serviceProvider, channelGroup, exchangeName]
+            [targetDefinition, serializer, messageContractRegistry, topologyName, channelGroup, exchangeName]
         )!;
     }
 
     private static OutboundTarget CreateTargetCore<TMessage>(
         RabbitMqOutboundTargetDefinition targetDefinition,
-        IServiceProvider serviceProvider,
+        IMessageSerializer serializer,
+        IMessageContractRegistry messageContractRegistry,
+        TopologyName topologyName,
         RabbitMqChannelGroup channelGroup,
         string exchangeName
     )
     {
-        var serializer = (IMessageSerializer) serviceProvider.GetRequiredService(targetDefinition.SerializerType!);
         var targetName = GetTargetName(targetDefinition);
 
         return targetDefinition switch
@@ -239,6 +256,8 @@ public static class RabbitMqOutboundTopologyCompiler
             RabbitMqFanoutOutboundTargetDefinition fanoutTarget => new RabbitMqFanoutOutboundTarget<TMessage>(
                 targetName,
                 serializer,
+                messageContractRegistry,
+                topologyName,
                 channelGroup,
                 exchangeName,
                 fanoutTarget.IsMandatory
@@ -246,6 +265,8 @@ public static class RabbitMqOutboundTopologyCompiler
             RabbitMqDirectOutboundTargetDefinition directTarget => new RabbitMqDirectOutboundTarget<TMessage>(
                 targetName,
                 serializer,
+                messageContractRegistry,
+                topologyName,
                 channelGroup,
                 exchangeName,
                 directTarget.IsMandatory,
@@ -255,6 +276,8 @@ public static class RabbitMqOutboundTopologyCompiler
             RabbitMqTopicOutboundTargetDefinition topicTarget => new RabbitMqTopicOutboundTarget<TMessage>(
                 targetName,
                 serializer,
+                messageContractRegistry,
+                topologyName,
                 channelGroup,
                 exchangeName,
                 topicTarget.IsMandatory,
@@ -264,6 +287,8 @@ public static class RabbitMqOutboundTopologyCompiler
             RabbitMqHeadersOutboundTargetDefinition headersTarget => new RabbitMqHeadersOutboundTarget<TMessage>(
                 targetName,
                 serializer,
+                messageContractRegistry,
+                topologyName,
                 channelGroup,
                 exchangeName,
                 headersTarget.IsMandatory,
@@ -295,18 +320,11 @@ public static class RabbitMqOutboundTopologyCompiler
     }
 
     private static void ValidateMessageContracts(
-        IServiceProvider serviceProvider,
+        IMessageContractRegistry registry,
         IReadOnlyList<RabbitMqOutboundTargetDefinition> targets,
         ICollection<string> validationErrors
     )
     {
-        var registry = serviceProvider.GetService<IMessageContractRegistry>();
-
-        if (registry is null)
-        {
-            return;
-        }
-
         MessageContractOutboundTopologyValidator.CollectValidationErrors(
             registry,
             targets.Select(
@@ -316,9 +334,35 @@ public static class RabbitMqOutboundTopologyCompiler
         );
     }
 
-    private static List<string> Validate(
-        IServiceProvider serviceProvider,
-        RabbitMqOutboundTopologyConfiguration configuration
+    private static void ValidateMessageContractDialect(
+        MessageContractRegistry? dialect,
+        IReadOnlyList<RabbitMqOutboundTargetDefinition> targets,
+        ICollection<string> validationErrors
+    )
+    {
+        if (dialect is null)
+        {
+            return;
+        }
+
+        var targetMessageTypes = targets.Select(static target => target.MessageType).ToArray();
+
+        foreach (var messageType in dialect.RegisteredMessageTypes)
+        {
+            if (targetMessageTypes.Any(targetMessageType => targetMessageType.IsAssignableFrom(messageType)))
+            {
+                continue;
+            }
+
+            validationErrors.Add(
+                $"RabbitMQ outbound message-contract dialect maps message type '{messageType}', but no outbound target publishes that type on this topology."
+            );
+        }
+    }
+
+    private List<string> Validate(
+        RabbitMqOutboundTopologyConfiguration configuration,
+        IMessageContractRegistry effectiveMessageContracts
     )
     {
         List<string> validationErrors = [];
@@ -358,7 +402,6 @@ public static class RabbitMqOutboundTopologyCompiler
         ValidateChannelGroupDefinitions(configuration.ChannelGroups, validationErrors);
         ValidateChannelGroupUsage(configuration.ChannelGroups, configuration.Targets, validationErrors);
         ValidateTargets(
-            serviceProvider,
             configuration.Targets,
             addressesByName,
             exchangesByName,
@@ -367,7 +410,12 @@ public static class RabbitMqOutboundTopologyCompiler
             validationErrors
         );
         ValidateBindings(configuration.Bindings, exchangesByName, queuesByName, validationErrors);
-        ValidateMessageContracts(serviceProvider, configuration.Targets, validationErrors);
+        ValidateMessageContracts(effectiveMessageContracts, configuration.Targets, validationErrors);
+        ValidateMessageContractDialect(
+            configuration.MessageContractDialect,
+            configuration.Targets,
+            validationErrors
+        );
 
         return validationErrors;
     }
@@ -518,8 +566,7 @@ public static class RabbitMqOutboundTopologyCompiler
         }
     }
 
-    private static void ValidateTargets(
-        IServiceProvider serviceProvider,
+    private void ValidateTargets(
         IReadOnlyList<RabbitMqOutboundTargetDefinition> targets,
         IReadOnlyDictionary<string, RabbitMqAddressDefinition> addressesByName,
         IReadOnlyDictionary<string, RabbitMqExchangeDefinition> exchangesByName,
@@ -549,7 +596,6 @@ public static class RabbitMqOutboundTopologyCompiler
                         .OrderBy(static target => target.TargetName ?? string.Empty, StringComparer.Ordinal))
             {
                 ValidateTarget(
-                    serviceProvider,
                     target,
                     addressesByName,
                     exchangesByName,
@@ -561,8 +607,7 @@ public static class RabbitMqOutboundTopologyCompiler
         }
     }
 
-    private static void ValidateTarget(
-        IServiceProvider serviceProvider,
+    private void ValidateTarget(
         RabbitMqOutboundTargetDefinition target,
         IReadOnlyDictionary<string, RabbitMqAddressDefinition> addressesByName,
         IReadOnlyDictionary<string, RabbitMqExchangeDefinition> exchangesByName,
@@ -614,7 +659,7 @@ public static class RabbitMqOutboundTopologyCompiler
                 $"Serializer '{target.SerializerType}' for {targetDescription.ToLowerInvariant()} does not implement '{typeof(IMessageSerializer)}'."
             );
         }
-        else if (serviceProvider.GetService(target.SerializerType) is null)
+        else if (_resolveSerializer(target.SerializerType) is null)
         {
             validationErrors.Add(
                 $"Serializer '{target.SerializerType}' for {targetDescription.ToLowerInvariant()} is not registered in the service provider."
@@ -788,23 +833,13 @@ public static class RabbitMqOutboundTopologyCompiler
         };
     }
 
-    private static void LogWorstCaseChannelCount(
-        IServiceProvider serviceProvider,
-        int worstCaseChannelCount,
-        string description
-    )
+    private void LogWorstCaseChannelCount(int worstCaseChannelCount, string description)
     {
-        var logger = CreateLogger(serviceProvider, typeof(RabbitMqOutboundTopologyCompiler));
+        var logger = _loggerFactory.CreateLogger(typeof(RabbitMqOutboundTopologyCompiler));
         logger.LogInformation(
             "RabbitMQ outbound topology may open up to {ChannelCount} channels ({Description})",
             worstCaseChannelCount,
             description
         );
-    }
-
-    private static ILogger CreateLogger(IServiceProvider serviceProvider, Type categoryType)
-    {
-        var loggerFactory = serviceProvider.GetService<ILoggerFactory>() ?? NullLoggerFactory.Instance;
-        return loggerFactory.CreateLogger(categoryType);
     }
 }

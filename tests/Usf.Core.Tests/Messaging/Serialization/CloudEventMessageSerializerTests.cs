@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.Threading.Tasks;
 using FluentAssertions;
 using Usf.Core.Messaging;
@@ -15,10 +14,7 @@ public sealed class CloudEventMessageSerializerTests
     public async Task SerializeAsync_AssemblesEnvelopeFromMetadataOptionsRegistryAndCodec()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
-        MessageContractRegistryBuilder registryBuilder = new ();
-        registryBuilder.Map<EnvelopeMessage>("tests.envelope").WithDataSchema("/schemas/envelope");
         var serializer = new CloudEventMessageSerializer(
-            registryBuilder.Build(),
             new StubPayloadCodec(new EncodedPayload("body"u8.ToArray(), "application/custom")),
             new CloudEventsOptions
             {
@@ -32,7 +28,8 @@ public sealed class CloudEventMessageSerializerTests
         var envelope = await serializer.SerializeAsync(
             new EnvelopeMessage("hello"),
             in metadata,
-            type: null,
+            "tests.envelope",
+            "/schemas/envelope",
             cancellationToken
         );
 
@@ -55,11 +52,6 @@ public sealed class CloudEventMessageSerializerTests
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var serializer = new CloudEventMessageSerializer(
-            new MessageContractRegistry(
-                new Dictionary<Type, string>(),
-                new Dictionary<string, Type>(),
-                new Dictionary<Type, string>()
-            ),
             new StubPayloadCodec(new EncodedPayload("body"u8.ToArray(), "application/custom")),
             new CloudEventsOptions
             {
@@ -75,6 +67,7 @@ public sealed class CloudEventMessageSerializerTests
             new EnvelopeMessage("hello"),
             in metadata,
             "already.resolved",
+            dataSchema: null,
             cancellationToken
         );
 
@@ -86,66 +79,59 @@ public sealed class CloudEventMessageSerializerTests
     public async Task SerializeAsync_RejectsMissingRequiredMetadata(
         CloudEventMetadata metadata,
         CloudEventsOptions options,
-        IMessageContractRegistry registry,
+        string? type,
         string expectedAttribute
     )
     {
         var serializer = new CloudEventMessageSerializer(
-            registry,
             new StubPayloadCodec(new EncodedPayload("body"u8.ToArray(), "application/custom")),
             options
         );
 
-        var action = async () => await serializer.SerializeAsync(new EnvelopeMessage("hello"), in metadata, type: null);
+        var action = async () => await serializer.SerializeAsync(
+            new EnvelopeMessage("hello"),
+            in metadata,
+            type,
+            dataSchema: null
+        );
 
         var exception = (await action.Should().ThrowAsync<CloudEventMetadataException>()).Which;
         exception.AttributeName.Should().Be(expectedAttribute);
     }
 
-    public static TheoryData<CloudEventMetadata, CloudEventsOptions, IMessageContractRegistry, string>
+    public static TheoryData<CloudEventMetadata, CloudEventsOptions, string?, string>
         GetMissingMetadataCases()
     {
         var id = Guid.Parse("cb2fcd1b-a98e-43ab-b634-7a40174b3fd6");
         var time = new DateTimeOffset(2026, 5, 31, 12, 34, 56, TimeSpan.Zero);
 
-        return new TheoryData<CloudEventMetadata, CloudEventsOptions, IMessageContractRegistry, string>
+        return new TheoryData<CloudEventMetadata, CloudEventsOptions, string?, string>
         {
             {
                 new CloudEventMetadata(Guid.Empty, time),
                 new CloudEventsOptions { Source = "/source" },
-                CreateRegistry(),
+                "tests.envelope",
                 "id"
             },
             {
                 new CloudEventMetadata(id, default),
                 new CloudEventsOptions { Source = "/source" },
-                CreateRegistry(),
+                "tests.envelope",
                 "time"
             },
             {
                 new CloudEventMetadata(id, time),
                 new CloudEventsOptions(),
-                CreateRegistry(),
+                "tests.envelope",
                 "source"
             },
             {
                 new CloudEventMetadata(id, time),
                 new CloudEventsOptions { Source = "/source" },
-                new MessageContractRegistry(
-                    new Dictionary<Type, string>(),
-                    new Dictionary<string, Type>(),
-                    new Dictionary<Type, string>()
-                ),
+                null,
                 "type"
             }
         };
-    }
-
-    private static IMessageContractRegistry CreateRegistry()
-    {
-        MessageContractRegistryBuilder builder = new ();
-        builder.Map<EnvelopeMessage>("tests.envelope");
-        return builder.Build();
     }
 
     private sealed record EnvelopeMessage(string Value);

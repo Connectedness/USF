@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Linq;
 using Usf.Core.Messaging.Errors;
 
 namespace Usf.Core.Messaging;
@@ -41,7 +42,13 @@ public sealed class MessageContractRegistry : IMessageContractRegistry
         _dataSchemasByMessageType = new ReadOnlyDictionary<Type, string>(
             new Dictionary<Type, string>(dataSchemasByMessageType)
         );
+        RegisteredMessageTypes = _discriminatorsByMessageType.Keys.OrderBy(
+            static messageType => messageType.FullName ?? messageType.Name,
+            StringComparer.Ordinal
+        ).ToArray();
     }
+
+    public IReadOnlyCollection<Type> RegisteredMessageTypes { get; }
 
     public string GetDiscriminator(Type messageType)
     {
@@ -76,6 +83,16 @@ public sealed class MessageContractRegistry : IMessageContractRegistry
         }
 
         return _dataSchemasByMessageType.TryGetValue(messageType, out var dataSchema) ? dataSchema : null;
+    }
+
+    public bool TryGetDataSchema(Type messageType, out string? dataSchema)
+    {
+        if (messageType is null)
+        {
+            throw new ArgumentNullException(nameof(messageType));
+        }
+
+        return _dataSchemasByMessageType.TryGetValue(messageType, out dataSchema);
     }
 
     public bool TryResolveType(string discriminator, out Type? messageType)

@@ -17,15 +17,12 @@ public sealed class CloudEventMessageSerializer : IMessageSerializer
 {
     private readonly CloudEventsOptions _options;
     private readonly IPayloadCodec _payloadCodec;
-    private readonly IMessageContractRegistry _registry;
 
     public CloudEventMessageSerializer(
-        IMessageContractRegistry registry,
         IPayloadCodec payloadCodec,
         CloudEventsOptions options
     )
     {
-        _registry = registry ?? throw new ArgumentNullException(nameof(registry));
         _payloadCodec = payloadCodec ?? throw new ArgumentNullException(nameof(payloadCodec));
         _options = options ?? throw new ArgumentNullException(nameof(options));
     }
@@ -34,6 +31,7 @@ public sealed class CloudEventMessageSerializer : IMessageSerializer
         T message,
         in CloudEventMetadata metadata,
         string? type,
+        string? dataSchema,
         CancellationToken cancellationToken = default
     )
     {
@@ -59,8 +57,7 @@ public sealed class CloudEventMessageSerializer : IMessageSerializer
         }
 
         var source = CloudEventsOptionsValidation.GetRequiredSource(metadata.Source ?? _options.Source);
-        var runtimeType = message.GetType();
-        var resolvedType = type ?? ResolveType(runtimeType);
+        var resolvedType = GetRequiredType(type);
         var payload = _payloadCodec.Encode(message);
 
         if (string.IsNullOrWhiteSpace(payload.DataContentType))
@@ -79,25 +76,23 @@ public sealed class CloudEventMessageSerializer : IMessageSerializer
             metadata.Time,
             metadata.Subject,
             payload.DataContentType,
-            _registry.GetDataSchema(runtimeType),
+            dataSchema,
             payload.Data
         );
 
         return new ValueTask<CloudEventEnvelope>(envelope);
     }
 
-    private string ResolveType(Type runtimeType)
+    private static string GetRequiredType(string? type)
     {
-        try
-        {
-            return _registry.GetDiscriminator(runtimeType);
-        }
-        catch (MessageContractNotRegisteredException exception)
+        if (string.IsNullOrWhiteSpace(type))
         {
             throw new CloudEventMetadataException(
                 CloudEventAttributeNames.Type,
-                $"Register the runtime message type '{exception.MessageType}' with MessageContractRegistryBuilder.Map<T>(...) or MapOutbound<T>(...)."
+                "Resolve a non-empty CloudEvents type discriminator before serializing the message."
             );
         }
+
+        return type!;
     }
 }

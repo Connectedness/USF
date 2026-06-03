@@ -25,11 +25,13 @@ public abstract class RabbitMqOutboundTarget<TMessage> : OutboundTarget<TMessage
     protected RabbitMqOutboundTarget(
         string name,
         IMessageSerializer serializer,
+        IMessageContractRegistry messageContractRegistry,
+        TopologyName topologyName,
         RabbitMqChannelGroup channelGroup,
         string exchangeName,
         bool isMandatory
     )
-        : base(name, "rabbitmq", serializer)
+        : base(name, "rabbitmq", serializer, messageContractRegistry, topologyName)
     {
         _channelGroup = channelGroup ?? throw new ArgumentNullException(nameof(channelGroup));
         _exchangeName = exchangeName ?? throw new ArgumentNullException(nameof(exchangeName));
@@ -290,11 +292,13 @@ public sealed class RabbitMqFanoutOutboundTarget<TMessage> : RabbitMqOutboundTar
     public RabbitMqFanoutOutboundTarget(
         string name,
         IMessageSerializer serializer,
+        IMessageContractRegistry messageContractRegistry,
+        TopologyName topologyName,
         RabbitMqChannelGroup channelGroup,
         string exchangeName,
         bool isMandatory
     )
-        : base(name, serializer, channelGroup, exchangeName, isMandatory) { }
+        : base(name, serializer, messageContractRegistry, topologyName, channelGroup, exchangeName, isMandatory) { }
 }
 
 public abstract class RabbitMqRoutingKeyOutboundTarget<TMessage> : RabbitMqOutboundTarget<TMessage>
@@ -305,13 +309,15 @@ public abstract class RabbitMqRoutingKeyOutboundTarget<TMessage> : RabbitMqOutbo
     protected RabbitMqRoutingKeyOutboundTarget(
         string name,
         IMessageSerializer serializer,
+        IMessageContractRegistry messageContractRegistry,
+        TopologyName topologyName,
         RabbitMqChannelGroup channelGroup,
         string exchangeName,
         bool isMandatory,
         string? constantRoutingKey,
         Func<TMessage, string>? routingKeyFactory
     )
-        : base(name, serializer, channelGroup, exchangeName, isMandatory)
+        : base(name, serializer, messageContractRegistry, topologyName, channelGroup, exchangeName, isMandatory)
     {
         if (constantRoutingKey is null && routingKeyFactory is null)
         {
@@ -352,6 +358,8 @@ public sealed class RabbitMqDirectOutboundTarget<TMessage> : RabbitMqRoutingKeyO
     public RabbitMqDirectOutboundTarget(
         string name,
         IMessageSerializer serializer,
+        IMessageContractRegistry messageContractRegistry,
+        TopologyName topologyName,
         RabbitMqChannelGroup channelGroup,
         string exchangeName,
         bool isMandatory,
@@ -361,6 +369,8 @@ public sealed class RabbitMqDirectOutboundTarget<TMessage> : RabbitMqRoutingKeyO
         : base(
             name,
             serializer,
+            messageContractRegistry,
+            topologyName,
             channelGroup,
             exchangeName,
             isMandatory,
@@ -374,6 +384,8 @@ public sealed class RabbitMqTopicOutboundTarget<TMessage> : RabbitMqRoutingKeyOu
     public RabbitMqTopicOutboundTarget(
         string name,
         IMessageSerializer serializer,
+        IMessageContractRegistry messageContractRegistry,
+        TopologyName topologyName,
         RabbitMqChannelGroup channelGroup,
         string exchangeName,
         bool isMandatory,
@@ -383,6 +395,8 @@ public sealed class RabbitMqTopicOutboundTarget<TMessage> : RabbitMqRoutingKeyOu
         : base(
             name,
             serializer,
+            messageContractRegistry,
+            topologyName,
             channelGroup,
             exchangeName,
             isMandatory,
@@ -398,12 +412,14 @@ public sealed class RabbitMqHeadersOutboundTarget<TMessage> : RabbitMqOutboundTa
     public RabbitMqHeadersOutboundTarget(
         string name,
         IMessageSerializer serializer,
+        IMessageContractRegistry messageContractRegistry,
+        TopologyName topologyName,
         RabbitMqChannelGroup channelGroup,
         string exchangeName,
         bool isMandatory,
         IReadOnlyDictionary<string, object?> headers
     )
-        : base(name, serializer, channelGroup, exchangeName, isMandatory)
+        : base(name, serializer, messageContractRegistry, topologyName, channelGroup, exchangeName, isMandatory)
     {
         _headers = headers ?? throw new ArgumentNullException(nameof(headers));
     }

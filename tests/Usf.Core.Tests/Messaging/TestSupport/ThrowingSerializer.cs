@@ -18,6 +18,7 @@ public sealed class ThrowingSerializer : IMessageSerializer
         T message,
         in CloudEventMetadata metadata,
         string? type,
+        string? dataSchema,
         CancellationToken cancellationToken = default
     )
     {

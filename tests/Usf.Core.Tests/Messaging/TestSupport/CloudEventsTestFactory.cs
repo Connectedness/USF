@@ -19,7 +19,6 @@ public static class CloudEventsTestFactory
     public static CloudEventMessageSerializer CreateSerializer()
     {
         return new CloudEventMessageSerializer(
-            CreateRegistry(),
             new Utf8JsonPayloadCodec(),
             new CloudEventsOptions
             {

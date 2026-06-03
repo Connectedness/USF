@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using RabbitMQ.Client;
+using Usf.Core.Messaging;
 using Usf.Transport.RabbitMq.Configuration;
 
 namespace Usf.Transport.RabbitMq;
@@ -16,6 +17,7 @@ public sealed class RabbitMqOutboundTopologyBuilder
     private Func<IServiceProvider, ConnectionFactory>? _createConnectionFactory;
     private RabbitMqPublisherConfirmMode _defaultPublisherConfirmMode = RabbitMqPublisherConfirmDefaults.Mode;
     private TimeSpan _defaultPublisherConfirmTimeout = RabbitMqPublisherConfirmDefaults.Timeout;
+    private MessageContractRegistryBuilder? _messageContracts;
 
     /// <summary>
     /// Configures the RabbitMQ connection factory used when the outbound topology first opens a connection.
@@ -131,6 +133,18 @@ public sealed class RabbitMqOutboundTopologyBuilder
         return this;
     }
 
+    public RabbitMqOutboundTopologyBuilder MapMessageContracts(Action<MessageContractRegistryBuilder> configure)
+    {
+        if (configure is null)
+        {
+            throw new ArgumentNullException(nameof(configure));
+        }
+
+        _messageContracts ??= new MessageContractRegistryBuilder();
+        configure(_messageContracts);
+        return this;
+    }
+
     public RabbitMqOutboundTopologyBuilder ChannelGroup(
         string name,
         int maximumChannelCount,
@@ -223,7 +237,8 @@ public sealed class RabbitMqOutboundTopologyBuilder
             _channelGroupDefinitions.AsReadOnly(),
             _targets.AsReadOnly(),
             _defaultPublisherConfirmMode,
-            _defaultPublisherConfirmTimeout
+            _defaultPublisherConfirmTimeout,
+            (MessageContractRegistry?) _messageContracts?.Build()
         );
     }
 
