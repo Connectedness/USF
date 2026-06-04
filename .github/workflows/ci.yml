@@ -1,0 +1,125 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+  DOTNET_NOLOGO: true
+  NUGET_PACKAGES: ${{ github.workspace }}/.nuget/packages
+
+jobs:
+  build-test:
+    name: Build and test
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.NUGET_PACKAGES }}
+          key: ${{ runner.os }}-nuget-${{ hashFiles('global.json', 'Directory.Packages.props', 'Directory.Build.props', 'src/Directory.Build.props', 'tests/Directory.Build.props', '**/*.csproj') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
+
+      - name: Verify Docker
+        run: docker version
+
+      - name: Restore
+        run: dotnet restore USF.slnx
+
+      - name: Build
+        run: dotnet build USF.slnx --configuration Release --no-restore
+
+      - name: Install coverage tools
+        run: |
+          dotnet tool install --global dotnet-coverage --version 18.7.0
+          dotnet tool install --global dotnet-reportgenerator-globaltool --version 5.5.10
+
+      - name: Test Usf.Core
+        run: |
+          mkdir -p artifacts/test-results/Usf.Core.Tests
+          dotnet-coverage collect \
+            "dotnet run --project tests/Usf.Core.Tests/Usf.Core.Tests.csproj --configuration Release --no-build --no-restore -- --results-directory artifacts/test-results/Usf.Core.Tests" \
+            --output artifacts/test-results/Usf.Core.Tests/coverage.cobertura.xml \
+            --output-format cobertura
+
+      - name: Test RabbitMQ transport
+        run: |
+          mkdir -p artifacts/test-results/Usf.Transport.RabbitMq.Tests
+          dotnet-coverage collect \
+            "dotnet run --project tests/Transports/Usf.Transport.RabbitMq.Tests/Usf.Transport.RabbitMq.Tests.csproj --configuration Release --no-build --no-restore -- --results-directory artifacts/test-results/Usf.Transport.RabbitMq.Tests" \
+            --output artifacts/test-results/Usf.Transport.RabbitMq.Tests/coverage.cobertura.xml \
+            --output-format cobertura
+
+      - name: Merge coverage
+        if: always()
+        run: >
+          reportgenerator
+          "-reports:artifacts/test-results/**/coverage.cobertura.xml"
+          "-targetdir:artifacts/coverage"
+          "-reporttypes:Cobertura;MarkdownSummaryGithub"
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results
+          path: artifacts/test-results
+          if-no-files-found: warn
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-report
+          path: artifacts/coverage
+          if-no-files-found: warn
+
+  coverage-comment:
+    name: Coverage comment
+    runs-on: ubuntu-latest
+    needs: build-test
+    if: >
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+
+    permissions:
+      contents: read
+      issues: write
+
+    steps:
+      - name: Download coverage report
+        uses: actions/download-artifact@v4
+        with:
+          name: coverage-report
+          path: artifacts/coverage
+
+      - name: Update pull request comment
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: code-coverage
+          path: artifacts/coverage/SummaryGithub.md
