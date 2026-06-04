@@ -1,6 +1,9 @@
 .vs/
 .vscode/
-.idea/
+.idea/**
+!.idea/.idea.USF/
+!.idea/.idea.USF/.idea/
+!.idea/.idea.USF/.idea/indexLayout.xml
 bin/
 obj/
 *.suo
