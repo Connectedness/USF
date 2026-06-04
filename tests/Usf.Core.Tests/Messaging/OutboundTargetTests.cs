@@ -1,6 +1,8 @@
 using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using FluentAssertions;
+using Usf.Abstractions;
 using Usf.Core.Messaging.Errors;
 using Usf.Core.Tests.Messaging.TestSupport;
 using Xunit;
@@ -31,5 +33,22 @@ public sealed class OutboundTargetTests
         var action = async () => await target.PublishAsync(new SampleMessage("hello"));
 
         await action.Should().ThrowAsync<OperationCanceledException>();
+    }
+
+    [Fact]
+    public async Task PublishAsync_ReportsMissingCloudEventIdWhenMessageDoesNotProvideMetadata()
+    {
+        var target = new RecordingTarget<ThirdPartyMessage>(
+            "third-party",
+            CloudEventsTestFactory.CreateSerializer(),
+            CloudEventsTestFactory.CreateRegistry(
+                new KeyValuePair<Type, string>(typeof(ThirdPartyMessage), "tests.third-party")
+            )
+        );
+
+        var action = async () => await target.PublishAsync(new ThirdPartyMessage("hello"));
+
+        var exception = (await action.Should().ThrowAsync<CloudEventMetadataException>()).Which;
+        exception.AttributeName.Should().Be(CloudEventAttributeNames.Id);
     }
 }

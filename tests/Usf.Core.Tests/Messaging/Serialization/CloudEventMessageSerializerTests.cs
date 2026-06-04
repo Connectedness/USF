@@ -1,6 +1,7 @@
 using System;
 using System.Threading.Tasks;
 using FluentAssertions;
+using Usf.Abstractions;
 using Usf.Core.Messaging;
 using Usf.Core.Messaging.Errors;
 using Usf.Core.Messaging.Serialization;
@@ -111,25 +112,25 @@ public sealed class CloudEventMessageSerializerTests
                 new CloudEventMetadata(Guid.Empty, time),
                 new CloudEventsOptions { Source = "/source" },
                 "tests.envelope",
-                "id"
+                CloudEventAttributeNames.Id
             },
             {
                 new CloudEventMetadata(id, default),
                 new CloudEventsOptions { Source = "/source" },
                 "tests.envelope",
-                "time"
+                CloudEventAttributeNames.Time
             },
             {
                 new CloudEventMetadata(id, time),
                 new CloudEventsOptions(),
                 "tests.envelope",
-                "source"
+                CloudEventAttributeNames.Source
             },
             {
                 new CloudEventMetadata(id, time),
                 new CloudEventsOptions { Source = "/source" },
                 null,
-                "type"
+                CloudEventAttributeNames.Type
             }
         };
     }

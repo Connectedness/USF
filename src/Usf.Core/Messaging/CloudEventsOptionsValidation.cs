@@ -1,4 +1,5 @@
 using System;
+using Usf.Abstractions;
 using Usf.Core.Messaging.Errors;
 
 namespace Usf.Core.Messaging;
@@ -20,7 +21,7 @@ public static class CloudEventsOptionsValidation
         if (!IsValidSource(source))
         {
             throw new CloudEventMetadataException(
-                "source",
+                CloudEventAttributeNames.Source,
                 "Configure CloudEventsOptions.Source with a non-empty URI-reference or pass a per-call CloudEventMetadata.Source override."
             );
         }

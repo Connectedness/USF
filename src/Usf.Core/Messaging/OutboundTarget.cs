@@ -111,7 +111,7 @@ public abstract class OutboundTarget<T> : OutboundTarget
         if (message is not ICloudEvent cloudEvent)
         {
             throw new CloudEventMetadataException(
-                "id",
+                CloudEventAttributeNames.Id,
                 "Implement ICloudEvent or derive from BaseCloudEvent, or call PublishAsync with explicit CloudEventMetadata."
             );
         }
