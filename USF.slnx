@@ -1,18 +1,4 @@
 <Solution>
-    <Folder Name="/ai-plans/">
-        <File Path="ai-plans\0001-0-message-publishing.md" />
-        <File Path="ai-plans\0001-1-rabbitmq-topology-extension.md" />
-        <File Path="ai-plans\0001-2-move-serializer-to-core.md" />
-        <File Path="ai-plans\0001-3-rabbitmq-channel-pooling.md" />
-        <File Path="ai-plans\0001-4-outbound-topology-restructuring.md" />
-        <File Path="ai-plans\0001-5-publisher-confirms-and-mandatory-routing.md" />
-        <File Path="ai-plans\0001-6-rabbitmq-automatic-reconnect.md" />
-        <File Path="ai-plans\0001-7-cloudevents-serialization.md" />
-        <File Path="ai-plans\0001-8-publish-trace-and-span-ids.md" />
-        <File Path="ai-plans\0001-9-multi-bus-support.md" />
-        <File Path="ai-plans\0001-plan-deviations.md" />
-        <File Path="ai-plans\AGENTS.md" />
-    </Folder>
     <Folder Name="/SolutionItems/">
         <File Path=".editorconfig" />
         <File Path=".gitignore" />
@@ -25,7 +11,7 @@
         <File Path="USF.sln.DotSettings" />
     </Folder>
     <Folder Name="/src/">
-        <File Path="src\Directory.Build.props" />
+        <File Path="src/Directory.Build.props" />
         <Project Path="src/Usf.Abstractions/Usf.Abstractions.csproj" />
         <Project Path="src/Usf.Core/Usf.Core.csproj" />
     </Folder>
@@ -36,8 +22,8 @@
         <Project Path="src/Transports/Usf.Transport.RabbitMq/Usf.Transport.RabbitMq.csproj" />
     </Folder>
     <Folder Name="/tests/">
-        <File Path="tests\AGENTS.md" />
-        <File Path="tests\Directory.Build.props" />
+        <File Path="tests/AGENTS.md" />
+        <File Path="tests/Directory.Build.props" />
         <Project Path="tests/Usf.Core.Tests/Usf.Core.Tests.csproj" />
     </Folder>
     <Folder Name="/tests/Transports/">
