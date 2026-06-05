@@ -54,40 +54,25 @@ jobs:
       - name: Build
         run: dotnet build USF.slnx --configuration Release --no-restore /p:ContinuousIntegrationBuild=true
 
-      - name: Install coverage tools
-        run: |
-          dotnet tool install --global dotnet-coverage --version 18.7.0
-          dotnet tool install --global dotnet-reportgenerator-globaltool --version 5.5.10
+      - name: Install ReportGenerator
+        run: dotnet tool install --global dotnet-reportgenerator-globaltool --version 5.5.10
 
-      - name: Test projects
-        run: |
-          set -euo pipefail
-
-          mapfile -d '' test_projects < <(find tests -name '*.Tests.csproj' -print0 | sort -z)
-
-          if [ "${#test_projects[@]}" -eq 0 ]; then
-            echo "No test projects found under ./tests."
-            exit 1
-          fi
-
-          for test_project in "${test_projects[@]}"; do
-            test_project_name="$(basename "$test_project" .csproj)"
-            test_results_dir="artifacts/test-results/$test_project_name"
-
-            echo "Running $test_project"
-            mkdir -p "$test_results_dir"
-
-            dotnet-coverage collect \
-              "dotnet run --project \"$test_project\" --configuration Release --no-build --no-restore /p:ContinuousIntegrationBuild=true -- --results-directory \"$test_results_dir\"" \
-              --output "$test_results_dir/coverage.cobertura.xml" \
-              --output-format cobertura
-          done
+      - name: Test
+        run: >
+          dotnet test USF.slnx
+          --configuration Release
+          --no-build
+          --no-restore
+          --results-directory artifacts/test-results
+          --coverage
+          --coverage-output-format cobertura
+          /p:ContinuousIntegrationBuild=true
 
       - name: Merge coverage
         if: always()
         run: >
           reportgenerator
-          "-reports:artifacts/test-results/**/coverage.cobertura.xml"
+          "-reports:artifacts/test-results/**/*.cobertura.xml"
           "-targetdir:artifacts/coverage"
           "-reporttypes:Cobertura;MarkdownSummaryGithub"
 

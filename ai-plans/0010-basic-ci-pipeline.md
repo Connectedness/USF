@@ -28,18 +28,12 @@ Use `actions/checkout` and `actions/setup-dotnet` with `global-json-file: global
 
 GitHub-hosted Ubuntu runners already include Docker, but the workflow should verify Docker is usable before test execution, for example with `docker version`. Keep the tests on Ubuntu unless the project later needs a matrix; the Testcontainers RabbitMQ tests only require a working Docker daemon.
 
-Because the test suite uses the Microsoft Testing Platform runner and `tests/AGENTS.md` notes that `dotnet test --solution USF.slnx --no-build` currently forwards an unsupported `--report-trx` option, discover and run test projects from `./tests` instead of invoking solution-level `dotnet test`. The MTP/xUnit v3 runner also rejects the VSTest `--collect:"XPlat Code Coverage"` switch, so collect coverage by running each discovered `*.Tests.csproj` project through Microsoft's pinned `dotnet-coverage` global tool:
+Because the test suite uses the Microsoft Testing Platform runner, use the Microsoft Testing Platform code coverage extension instead of the VSTest `coverlet.collector` package. Test projects reference `Microsoft.Testing.Extensions.CodeCoverage`, which lets the workflow run the whole solution with `dotnet test` and MTP-native coverage:
 
 ```bash
-dotnet tool install --global dotnet-coverage --version 18.7.0
-mapfile -d '' test_projects < <(find tests -name '*.Tests.csproj' -print0 | sort -z)
-for test_project in "${test_projects[@]}"; do
-  test_project_name="$(basename "$test_project" .csproj)"
-  test_results_dir="artifacts/test-results/$test_project_name"
-  dotnet-coverage collect "dotnet run --project \"$test_project\" --configuration Release --no-build --no-restore /p:ContinuousIntegrationBuild=true -- --results-directory \"$test_results_dir\"" --output "$test_results_dir/coverage.cobertura.xml" --output-format cobertura
-done
+dotnet test USF.slnx --configuration Release --no-build --no-restore --results-directory artifacts/test-results --coverage --coverage-output-format cobertura /p:ContinuousIntegrationBuild=true
 ```
 
-Use a pinned `dotnet-reportgenerator-globaltool` to merge every generated `coverage.cobertura.xml` into one stable output such as `artifacts/coverage/Cobertura.xml`, with `-reporttypes:Cobertura;MarkdownSummaryGithub` so the same step also produces a Markdown summary. The important CI behavior is to merge the per-project files into one stable Cobertura report and normalize the output path. Upload both the raw test result directories and merged coverage directory with `actions/upload-artifact`, using `if: always()` so failures still leave diagnostics behind.
+Use a pinned `dotnet-reportgenerator-globaltool` to merge every generated `*.cobertura.xml` into one stable output such as `artifacts/coverage/Cobertura.xml`, with `-reporttypes:Cobertura;MarkdownSummaryGithub` so the same step also produces a Markdown summary. The important CI behavior is to merge the per-project files into one stable Cobertura report and normalize the output path. Upload both the raw test result directories and merged coverage directory with `actions/upload-artifact`, using `if: always()` so failures still leave diagnostics behind.
 
 For PR comments, prefer `irongut/CodeCoverageSummary` if it can consume the merged Cobertura file and produce the desired summary/comment behavior without duplicating coverage calculations. Otherwise, use the ReportGenerator Markdown summary plus an action such as `marocchino/sticky-pull-request-comment` to create or update a single sticky coverage comment on `pull_request` events only. The comment step should be skipped for `push` events. For same-repository PRs, the comment can run in a separate job with write permissions after tests complete. If forked PR comments are required, split commenting into a separate `workflow_run`-based workflow that reads artifacts from the completed untrusted run and comments with a write-capable token. If that extra workflow is not worth the complexity, skip the fork comment and rely on uploaded artifacts. Do not switch the build/test workflow to `pull_request_target`.
