@@ -67,21 +67,21 @@ public sealed class RabbitMqChannelGroupTests
         var services = new ServiceCollection();
         services.AddTestCloudEvents()
            .AddRabbitMqOutboundTopology(
-            builder =>
-            {
-                builder.UseConnectionFactory(static _ => new ConnectionFactory());
-                builder.WithDefaultPublisherConfirmMode(RabbitMqPublisherConfirmMode.FireAndForget);
-                builder.Exchange("orders", ExchangeType.Fanout);
-                builder.Address("orders-address", "orders");
-                builder.ChannelGroup("shared", 2);
-                builder.Publish<ValidationMessageA>(
-                    target => target
-                       .ToFanoutAddress("orders-address")
-                       .UseChannelGroup("shared")
-                       .WithSerializer<CloudEventMessageSerializer>()
-                );
-            }
-        );
+                builder =>
+                {
+                    builder.UseConnectionFactory(static _ => new ConnectionFactory());
+                    builder.WithDefaultPublisherConfirmMode(RabbitMqPublisherConfirmMode.FireAndForget);
+                    builder.Exchange("orders", ExchangeType.Fanout);
+                    builder.Address("orders-address", "orders");
+                    builder.ChannelGroup("shared", 2);
+                    builder.Publish<ValidationMessageA>(
+                        target => target
+                           .ToFanoutAddress("orders-address")
+                           .UseChannelGroup("shared")
+                           .WithSerializer<CloudEventMessageSerializer>()
+                    );
+                }
+            );
         using var serviceProvider = services.BuildServiceProvider();
 
         var topology = serviceProvider.GetRequiredService<RabbitMqOutboundTopology>();
@@ -590,7 +590,7 @@ public sealed class RabbitMqChannelGroupTests
         parentActivity.AddBaggage("tenant", "tenant-activity").Start();
         using var listener = new ActivityListener
         {
-            ShouldListenTo = source => source.Name == OutboundDiagnostics.ActivitySource.Name,
+            ShouldListenTo = source => source.Name == OutboundDiagnostics.ActivitySourceName,
             Sample = static (ref _) => ActivitySamplingResult.AllData,
             ActivityStarted = activity =>
             {
@@ -807,29 +807,31 @@ public sealed class RabbitMqChannelGroupTests
         var services = new ServiceCollection();
         services
            .AddUsf()
-           .AddRabbitMqOutboundTopology(_ =>
-           {
-               foreach (var channelGroup in builder.Build().ChannelGroups)
-               {
-                   _.ChannelGroup(
-                       channelGroup.Name,
-                       channelGroup.MaximumChannelCount,
-                       channelGroup.PublisherConfirmMode,
-                       channelGroup.PublisherConfirmTimeout
-                   );
-               }
+           .AddRabbitMqOutboundTopology(
+                _ =>
+                {
+                    foreach (var channelGroup in builder.Build().ChannelGroups)
+                    {
+                        _.ChannelGroup(
+                            channelGroup.Name,
+                            channelGroup.MaximumChannelCount,
+                            channelGroup.PublisherConfirmMode,
+                            channelGroup.PublisherConfirmTimeout
+                        );
+                    }
 
-               _.UseConnectionFactory(
-                   serviceProvider =>
-                   {
-                       createFactoryCallCount++;
-                       return new ConnectionFactory
-                       {
-                           AutomaticRecoveryEnabled = false
-                       };
-                   }
-               );
-           });
+                    _.UseConnectionFactory(
+                        serviceProvider =>
+                        {
+                            createFactoryCallCount++;
+                            return new ConnectionFactory
+                            {
+                                AutomaticRecoveryEnabled = false
+                            };
+                        }
+                    );
+                }
+            );
         using var serviceProvider = services.BuildServiceProvider();
         await using var topology = serviceProvider.GetRequiredService<RabbitMqOutboundTopology>();
 
@@ -1082,21 +1084,21 @@ public sealed class RabbitMqChannelGroupTests
         var services = new ServiceCollection();
         services.AddTestCloudEvents()
            .AddRabbitMqOutboundTopology(
-            builder =>
-            {
-                builder.UseConnectionFactory(static _ => new ConnectionFactory());
-                builder.Exchange("orders", ExchangeType.Fanout);
-                builder.Address("orders-address", "orders");
-                builder.ChannelGroup("referenced", 2);
-                builder.ChannelGroup("orphaned", 5);
-                builder.Publish<ValidationMessageA>(
-                    target => target
-                       .ToFanoutAddress("orders-address")
-                       .UseChannelGroup("referenced")
-                       .WithSerializer<CloudEventMessageSerializer>()
-                );
-            }
-        );
+                builder =>
+                {
+                    builder.UseConnectionFactory(static _ => new ConnectionFactory());
+                    builder.Exchange("orders", ExchangeType.Fanout);
+                    builder.Address("orders-address", "orders");
+                    builder.ChannelGroup("referenced", 2);
+                    builder.ChannelGroup("orphaned", 5);
+                    builder.Publish<ValidationMessageA>(
+                        target => target
+                           .ToFanoutAddress("orders-address")
+                           .UseChannelGroup("referenced")
+                           .WithSerializer<CloudEventMessageSerializer>()
+                    );
+                }
+            );
         using var serviceProvider = services.BuildServiceProvider();
 
         Action act = () => _ = serviceProvider.GetRequiredService<RabbitMqOutboundTopology>();
@@ -1115,20 +1117,20 @@ public sealed class RabbitMqChannelGroupTests
         services.AddSingleton<ILoggerFactory>(loggerFactory);
         services.AddTestCloudEvents()
            .AddRabbitMqOutboundTopology(
-            builder =>
-            {
-                builder.UseConnectionFactory(static _ => new ConnectionFactory());
-                builder.Exchange("orders", ExchangeType.Fanout);
-                builder.Address("orders-address", "orders");
-                builder.ChannelGroup("shared", 11);
-                builder.Publish<ValidationMessageA>(
-                    target => target
-                       .ToFanoutAddress("orders-address")
-                       .UseChannelGroup("shared")
-                       .WithSerializer<CloudEventMessageSerializer>()
-                );
-            }
-        );
+                builder =>
+                {
+                    builder.UseConnectionFactory(static _ => new ConnectionFactory());
+                    builder.Exchange("orders", ExchangeType.Fanout);
+                    builder.Address("orders-address", "orders");
+                    builder.ChannelGroup("shared", 11);
+                    builder.Publish<ValidationMessageA>(
+                        target => target
+                           .ToFanoutAddress("orders-address")
+                           .UseChannelGroup("shared")
+                           .WithSerializer<CloudEventMessageSerializer>()
+                    );
+                }
+            );
         using var serviceProvider = services.BuildServiceProvider();
 
         _ = serviceProvider.GetRequiredService<RabbitMqOutboundTopology>();
@@ -1146,34 +1148,34 @@ public sealed class RabbitMqChannelGroupTests
         var services = new ServiceCollection();
         services.AddTestCloudEvents()
            .AddRabbitMqOutboundTopology(
-            builder =>
-            {
-                builder.UseConnectionFactory(static _ => new ConnectionFactory());
-                builder.Exchange("orders", ExchangeType.Fanout);
-                builder.Address("orders-address", "orders");
-                builder.ChannelGroup("shared", 2);
-                builder.Publish<ValidationMessageA>(
-                    target => target
-                       .ToFanoutAddress("orders-address")
-                       .UseChannelGroup("shared")
-                       .WithSerializer<CloudEventMessageSerializer>()
-                );
-                builder.PublishNamed<ValidationMessageA>(
-                    "secondary",
-                    target => target
-                       .ToFanoutAddress("orders-address")
-                       .UseChannelGroup("shared")
-                       .WithSerializer<CloudEventMessageSerializer>()
-                );
-                builder.PublishNamed<ValidationMessageA>(
-                    "tertiary",
-                    target => target
-                       .ToFanoutAddress("orders-address")
-                       .UseChannelGroup("shared")
-                       .WithSerializer<CloudEventMessageSerializer>()
-                );
-            }
-        );
+                builder =>
+                {
+                    builder.UseConnectionFactory(static _ => new ConnectionFactory());
+                    builder.Exchange("orders", ExchangeType.Fanout);
+                    builder.Address("orders-address", "orders");
+                    builder.ChannelGroup("shared", 2);
+                    builder.Publish<ValidationMessageA>(
+                        target => target
+                           .ToFanoutAddress("orders-address")
+                           .UseChannelGroup("shared")
+                           .WithSerializer<CloudEventMessageSerializer>()
+                    );
+                    builder.PublishNamed<ValidationMessageA>(
+                        "secondary",
+                        target => target
+                           .ToFanoutAddress("orders-address")
+                           .UseChannelGroup("shared")
+                           .WithSerializer<CloudEventMessageSerializer>()
+                    );
+                    builder.PublishNamed<ValidationMessageA>(
+                        "tertiary",
+                        target => target
+                           .ToFanoutAddress("orders-address")
+                           .UseChannelGroup("shared")
+                           .WithSerializer<CloudEventMessageSerializer>()
+                    );
+                }
+            );
         using var serviceProvider = services.BuildServiceProvider();
 
         var topology = serviceProvider.GetRequiredService<RabbitMqOutboundTopology>();
@@ -1190,24 +1192,24 @@ public sealed class RabbitMqChannelGroupTests
         var services = new ServiceCollection();
         services.AddTestCloudEvents()
            .AddRabbitMqOutboundTopology(
-            builder =>
-            {
-                builder.UseConnectionFactory(static _ => new ConnectionFactory());
-                builder.Exchange("orders", ExchangeType.Fanout);
-                builder.Address("orders-address", "orders");
-                builder.Publish<ValidationMessageA>(
-                    target => target.ToFanoutAddress("orders-address").WithSerializer<CloudEventMessageSerializer>()
-                );
-                builder.PublishNamed<ValidationMessageA>(
-                    "secondary",
-                    target => target.ToFanoutAddress("orders-address").WithSerializer<CloudEventMessageSerializer>()
-                );
-                builder.PublishNamed<ValidationMessageA>(
-                    "tertiary",
-                    target => target.ToFanoutAddress("orders-address").WithSerializer<CloudEventMessageSerializer>()
-                );
-            }
-        );
+                builder =>
+                {
+                    builder.UseConnectionFactory(static _ => new ConnectionFactory());
+                    builder.Exchange("orders", ExchangeType.Fanout);
+                    builder.Address("orders-address", "orders");
+                    builder.Publish<ValidationMessageA>(
+                        target => target.ToFanoutAddress("orders-address").WithSerializer<CloudEventMessageSerializer>()
+                    );
+                    builder.PublishNamed<ValidationMessageA>(
+                        "secondary",
+                        target => target.ToFanoutAddress("orders-address").WithSerializer<CloudEventMessageSerializer>()
+                    );
+                    builder.PublishNamed<ValidationMessageA>(
+                        "tertiary",
+                        target => target.ToFanoutAddress("orders-address").WithSerializer<CloudEventMessageSerializer>()
+                    );
+                }
+            );
         using var serviceProvider = services.BuildServiceProvider();
 
         var topology = serviceProvider.GetRequiredService<RabbitMqOutboundTopology>();

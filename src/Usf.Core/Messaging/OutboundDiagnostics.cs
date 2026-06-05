@@ -5,6 +5,8 @@ namespace Usf.Core.Messaging;
 
 public static class OutboundDiagnostics
 {
+    public const string ActivitySourceName = "Usf.Outbound";
+
     public const string MessageTypeTagName = "usf.outbound.message.type";
 
     public const string TargetNameTagName = "usf.outbound.target.name";
@@ -15,9 +17,9 @@ public static class OutboundDiagnostics
 
     public const string DeliveryFailureReasonTagName = "usf.outbound.delivery.failure.reason";
 
-    public static readonly ActivitySource ActivitySource = new ("Usf.Outbound");
+    public static readonly ActivitySource ActivitySource = new (ActivitySourceName);
 
-    public static readonly Meter Meter = new ("Usf.Outbound");
+    public static readonly Meter Meter = new (ActivitySourceName);
 
     public static readonly Counter<long> PublishAttempts = Meter.CreateCounter<long>("usf.outbound.publish.attempts");
 

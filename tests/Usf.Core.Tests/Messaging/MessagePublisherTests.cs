@@ -12,6 +12,7 @@ using Xunit;
 
 namespace Usf.Core.Tests.Messaging;
 
+[Collection("Diagnostics")]
 public sealed class MessagePublisherTests
 {
     private const string UninitializedTopologyPublisherMessage =

@@ -44,91 +44,91 @@ public sealed class RabbitMqPublishingIntegrationTests
             var services = new ServiceCollection();
             services.AddTestCloudEvents()
                .AddRabbitMqOutboundTopology(
-                builder =>
-                {
-                    builder.UseConnectionFactory(
-                        _ => new ConnectionFactory
-                        {
-                            Uri = new Uri(container.GetConnectionString())
-                        }
-                    );
+                    builder =>
+                    {
+                        builder.UseConnectionFactory(
+                            _ => new ConnectionFactory
+                            {
+                                Uri = new Uri(container.GetConnectionString())
+                            }
+                        );
 
-                    builder.Exchange("orders-direct", ExchangeType.Direct);
-                    builder.Exchange("orders-topic", ExchangeType.Topic);
-                    builder.Exchange(
-                        "orders-fanout",
-                        ExchangeType.Fanout,
-                        exchange => exchange.WithDeclareMode(RabbitMqDeclareMode.Passive)
-                    );
-                    builder.Exchange("orders-headers", ExchangeType.Headers);
-                    builder.Exchange("orders-upstream", ExchangeType.Direct);
-                    builder.Exchange("orders-downstream", ExchangeType.Direct);
-                    builder.Address("orders-direct-address", "orders-direct");
-                    builder.Address("orders-topic-address", "orders-topic");
-                    builder.Address("orders-fanout-address", "orders-fanout");
-                    builder.Address("orders-headers-address", "orders-headers");
-                    builder.Address("orders-upstream-address", "orders-upstream");
+                        builder.Exchange("orders-direct", ExchangeType.Direct);
+                        builder.Exchange("orders-topic", ExchangeType.Topic);
+                        builder.Exchange(
+                            "orders-fanout",
+                            ExchangeType.Fanout,
+                            exchange => exchange.WithDeclareMode(RabbitMqDeclareMode.Passive)
+                        );
+                        builder.Exchange("orders-headers", ExchangeType.Headers);
+                        builder.Exchange("orders-upstream", ExchangeType.Direct);
+                        builder.Exchange("orders-downstream", ExchangeType.Direct);
+                        builder.Address("orders-direct-address", "orders-direct");
+                        builder.Address("orders-topic-address", "orders-topic");
+                        builder.Address("orders-fanout-address", "orders-fanout");
+                        builder.Address("orders-headers-address", "orders-headers");
+                        builder.Address("orders-upstream-address", "orders-upstream");
 
-                    builder.Queue("orders-direct-queue");
-                    builder.Queue("orders-audit-queue");
-                    builder.Queue("orders-topic-queue");
-                    builder.Queue("orders-fanout-queue");
-                    builder.Queue("orders-headers-queue");
-                    builder.Queue("orders-exchange-binding-queue");
+                        builder.Queue("orders-direct-queue");
+                        builder.Queue("orders-audit-queue");
+                        builder.Queue("orders-topic-queue");
+                        builder.Queue("orders-fanout-queue");
+                        builder.Queue("orders-headers-queue");
+                        builder.Queue("orders-exchange-binding-queue");
 
-                    builder.QueueBinding("orders-direct", "orders-direct-queue", "orders.created");
-                    builder.QueueBinding("orders-direct", "orders-audit-queue", "orders.audit");
-                    builder.QueueBinding("orders-topic", "orders-topic-queue", "orders.topic");
-                    builder.QueueBinding("orders-fanout", "orders-fanout-queue");
-                    builder.QueueBinding(
-                        "orders-headers",
-                        "orders-headers-queue",
-                        configure: binding => binding
-                           .WithArgument("x-match", "all")
-                           .WithArgument("tenant", "tenant-headers")
-                           .WithArgument("region", "us")
-                    );
-                    builder.ExchangeBinding("orders-upstream", "orders-downstream", "orders.exchange");
-                    builder.QueueBinding("orders-downstream", "orders-exchange-binding-queue", "orders.exchange");
+                        builder.QueueBinding("orders-direct", "orders-direct-queue", "orders.created");
+                        builder.QueueBinding("orders-direct", "orders-audit-queue", "orders.audit");
+                        builder.QueueBinding("orders-topic", "orders-topic-queue", "orders.topic");
+                        builder.QueueBinding("orders-fanout", "orders-fanout-queue");
+                        builder.QueueBinding(
+                            "orders-headers",
+                            "orders-headers-queue",
+                            configure: binding => binding
+                               .WithArgument("x-match", "all")
+                               .WithArgument("tenant", "tenant-headers")
+                               .WithArgument("region", "us")
+                        );
+                        builder.ExchangeBinding("orders-upstream", "orders-downstream", "orders.exchange");
+                        builder.QueueBinding("orders-downstream", "orders-exchange-binding-queue", "orders.exchange");
 
-                    builder.Publish<RabbitMqPublishMessage>(
-                        route => route
-                           .ToDirectAddress("orders-direct-address", "orders.created")
-                           .WithSerializer<CloudEventMessageSerializer>()
-                    );
-                    builder.Publish<RabbitMqAuditMessage>(
-                        route => route
-                           .ToDirectAddress("orders-direct-address", "orders.audit")
-                           .WithSerializer<CloudEventMessageSerializer>()
-                    );
-                    builder.PublishNamed<RabbitMqPublishMessage>(
-                        "topic-target",
-                        route => route
-                           .ToTopicAddress("orders-topic-address", static message => $"orders.{message.Name}")
-                           .WithSerializer<CloudEventMessageSerializer>()
-                    );
-                    builder.PublishNamed<RabbitMqPublishMessage>(
-                        "fanout-target",
-                        route => route
-                           .ToFanoutAddress("orders-fanout-address")
-                           .WithSerializer<CloudEventMessageSerializer>()
-                    );
-                    builder.PublishNamed<RabbitMqPublishMessage>(
-                        "headers-target",
-                        route => route
-                           .ToHeadersAddress("orders-headers-address")
-                           .WithHeader("tenant", "tenant-headers")
-                           .WithHeader("region", "us")
-                           .WithSerializer<CloudEventMessageSerializer>()
-                    );
-                    builder.PublishNamed<RabbitMqPublishMessage>(
-                        "exchange-binding-target",
-                        route => route
-                           .ToDirectAddress("orders-upstream-address", "orders.exchange")
-                           .WithSerializer<CloudEventMessageSerializer>()
-                    );
-                }
-            );
+                        builder.Publish<RabbitMqPublishMessage>(
+                            route => route
+                               .ToDirectAddress("orders-direct-address", "orders.created")
+                               .WithSerializer<CloudEventMessageSerializer>()
+                        );
+                        builder.Publish<RabbitMqAuditMessage>(
+                            route => route
+                               .ToDirectAddress("orders-direct-address", "orders.audit")
+                               .WithSerializer<CloudEventMessageSerializer>()
+                        );
+                        builder.PublishNamed<RabbitMqPublishMessage>(
+                            "topic-target",
+                            route => route
+                               .ToTopicAddress("orders-topic-address", static message => $"orders.{message.Name}")
+                               .WithSerializer<CloudEventMessageSerializer>()
+                        );
+                        builder.PublishNamed<RabbitMqPublishMessage>(
+                            "fanout-target",
+                            route => route
+                               .ToFanoutAddress("orders-fanout-address")
+                               .WithSerializer<CloudEventMessageSerializer>()
+                        );
+                        builder.PublishNamed<RabbitMqPublishMessage>(
+                            "headers-target",
+                            route => route
+                               .ToHeadersAddress("orders-headers-address")
+                               .WithHeader("tenant", "tenant-headers")
+                               .WithHeader("region", "us")
+                               .WithSerializer<CloudEventMessageSerializer>()
+                        );
+                        builder.PublishNamed<RabbitMqPublishMessage>(
+                            "exchange-binding-target",
+                            route => route
+                               .ToDirectAddress("orders-upstream-address", "orders.exchange")
+                               .WithSerializer<CloudEventMessageSerializer>()
+                        );
+                    }
+                );
 
             await using var serviceProvider = services.BuildServiceProvider();
 
@@ -142,7 +142,7 @@ public sealed class RabbitMqPublishingIntegrationTests
             Activity? directProducerActivity = null;
             var directParentTraceId = default(ActivityTraceId);
             using var listener = new ActivityListener();
-            listener.ShouldListenTo = source => source.Name == OutboundDiagnostics.ActivitySource.Name;
+            listener.ShouldListenTo = source => source.Name == OutboundDiagnostics.ActivitySourceName;
             listener.Sample = static (ref _) => ActivitySamplingResult.AllData;
             listener.ActivityStarted = activity =>
             {
@@ -394,27 +394,27 @@ public sealed class RabbitMqPublishingIntegrationTests
             var services = new ServiceCollection();
             services.AddTestCloudEvents()
                .AddRabbitMqOutboundTopology(
-                builder =>
-                {
-                    builder.UseConnectionFactory(
-                        _ => new ConnectionFactory
-                        {
-                            Uri = new Uri(container.GetConnectionString())
-                        }
-                    );
+                    builder =>
+                    {
+                        builder.UseConnectionFactory(
+                            _ => new ConnectionFactory
+                            {
+                                Uri = new Uri(container.GetConnectionString())
+                            }
+                        );
 
-                    builder.Exchange("raw-fanout", ExchangeType.Fanout);
-                    builder.Address("raw-address", "raw-fanout");
-                    builder.Queue("raw-queue");
-                    builder.QueueBinding("raw-fanout", "raw-queue");
+                        builder.Exchange("raw-fanout", ExchangeType.Fanout);
+                        builder.Address("raw-address", "raw-fanout");
+                        builder.Queue("raw-queue");
+                        builder.QueueBinding("raw-fanout", "raw-queue");
 
-                    builder.Publish<RabbitMqPublishMessage>(
-                        route => route
-                           .ToFanoutAddress("raw-address")
-                           .WithSerializer<CloudEventMessageSerializer>()
-                    );
-                }
-            );
+                        builder.Publish<RabbitMqPublishMessage>(
+                            route => route
+                               .ToFanoutAddress("raw-address")
+                               .WithSerializer<CloudEventMessageSerializer>()
+                        );
+                    }
+                );
 
             await using var serviceProvider = services.BuildServiceProvider();
 
@@ -480,25 +480,25 @@ public sealed class RabbitMqPublishingIntegrationTests
             var services = new ServiceCollection();
             services.AddTestCloudEvents()
                .AddRabbitMqOutboundTopology(
-                builder =>
-                {
-                    builder.UseConnectionFactory(
-                        _ => new ConnectionFactory
-                        {
-                            Uri = new Uri(container.GetConnectionString())
-                        }
-                    );
+                    builder =>
+                    {
+                        builder.UseConnectionFactory(
+                            _ => new ConnectionFactory
+                            {
+                                Uri = new Uri(container.GetConnectionString())
+                            }
+                        );
 
-                    builder.Exchange("unroutable-fanout", ExchangeType.Fanout);
-                    builder.Address("unroutable-address", "unroutable-fanout");
-                    builder.Publish<RabbitMqPublishMessage>(
-                        route => route
-                           .ToFanoutAddress("unroutable-address")
-                           .Mandatory()
-                           .WithSerializer<CloudEventMessageSerializer>()
-                    );
-                }
-            );
+                        builder.Exchange("unroutable-fanout", ExchangeType.Fanout);
+                        builder.Address("unroutable-address", "unroutable-fanout");
+                        builder.Publish<RabbitMqPublishMessage>(
+                            route => route
+                               .ToFanoutAddress("unroutable-address")
+                               .Mandatory()
+                               .WithSerializer<CloudEventMessageSerializer>()
+                        );
+                    }
+                );
 
             await using var serviceProvider = services.BuildServiceProvider();
 
@@ -539,36 +539,36 @@ public sealed class RabbitMqPublishingIntegrationTests
             var services = new ServiceCollection();
             services.AddTestCloudEvents()
                .AddRabbitMqOutboundTopology(
-                builder =>
-                {
-                    builder.UseConnectionFactory(
-                        _ => new ConnectionFactory
-                        {
-                            Uri = new Uri(container.GetConnectionString())
-                        }
-                    );
+                    builder =>
+                    {
+                        builder.UseConnectionFactory(
+                            _ => new ConnectionFactory
+                            {
+                                Uri = new Uri(container.GetConnectionString())
+                            }
+                        );
 
-                    builder.Exchange("rejecting-fanout", ExchangeType.Fanout);
-                    builder.Address("rejecting-address", "rejecting-fanout");
+                        builder.Exchange("rejecting-fanout", ExchangeType.Fanout);
+                        builder.Address("rejecting-address", "rejecting-fanout");
 
-                    // A length-bounded queue with reject-publish overflow makes the broker NACK any publish
-                    // once the queue is full. With confirms on (the default), the first awaited publish fills
-                    // the queue, so the second deterministically surfaces as a Nacked delivery failure.
-                    builder.Queue(
-                        "rejecting-queue",
-                        queue => queue
-                           .WithMaxLength(1)
-                           .WithArgument("x-overflow", "reject-publish")
-                    );
-                    builder.QueueBinding("rejecting-fanout", "rejecting-queue");
+                        // A length-bounded queue with reject-publish overflow makes the broker NACK any publish
+                        // once the queue is full. With confirms on (the default), the first awaited publish fills
+                        // the queue, so the second deterministically surfaces as a Nacked delivery failure.
+                        builder.Queue(
+                            "rejecting-queue",
+                            queue => queue
+                               .WithMaxLength(1)
+                               .WithArgument("x-overflow", "reject-publish")
+                        );
+                        builder.QueueBinding("rejecting-fanout", "rejecting-queue");
 
-                    builder.Publish<RabbitMqPublishMessage>(
-                        route => route
-                           .ToFanoutAddress("rejecting-address")
-                           .WithSerializer<CloudEventMessageSerializer>()
-                    );
-                }
-            );
+                        builder.Publish<RabbitMqPublishMessage>(
+                            route => route
+                               .ToFanoutAddress("rejecting-address")
+                               .WithSerializer<CloudEventMessageSerializer>()
+                        );
+                    }
+                );
 
             await using var serviceProvider = services.BuildServiceProvider();
 
@@ -619,34 +619,34 @@ public sealed class RabbitMqPublishingIntegrationTests
             var services = new ServiceCollection();
             services.AddTestCloudEvents()
                .AddRabbitMqOutboundTopology(
-                builder =>
-                {
-                    builder.UseConnectionFactory(
-                        _ => new ConnectionFactory
-                        {
-                            Uri = new Uri(connectionString),
-                            NetworkRecoveryInterval = TimeSpan.FromMilliseconds(200)
-                        }
-                    );
+                    builder =>
+                    {
+                        builder.UseConnectionFactory(
+                            _ => new ConnectionFactory
+                            {
+                                Uri = new Uri(connectionString),
+                                NetworkRecoveryInterval = TimeSpan.FromMilliseconds(200)
+                            }
+                        );
 
-                    builder.Exchange("recovering-fanout", ExchangeType.Fanout);
-                    builder.Address("recovering-address", "recovering-fanout");
-                    builder.Queue("recovering-queue");
-                    builder.QueueBinding("recovering-fanout", "recovering-queue");
-                    builder.ChannelGroup(
-                        "recovering-group",
-                        1,
-                        RabbitMqPublisherConfirmMode.Confirms,
-                        TimeSpan.FromSeconds(2)
-                    );
-                    builder.Publish<RabbitMqPublishMessage>(
-                        route => route
-                           .ToFanoutAddress("recovering-address")
-                           .UseChannelGroup("recovering-group")
-                           .WithSerializer<CloudEventMessageSerializer>()
-                    );
-                }
-            );
+                        builder.Exchange("recovering-fanout", ExchangeType.Fanout);
+                        builder.Address("recovering-address", "recovering-fanout");
+                        builder.Queue("recovering-queue");
+                        builder.QueueBinding("recovering-fanout", "recovering-queue");
+                        builder.ChannelGroup(
+                            "recovering-group",
+                            1,
+                            RabbitMqPublisherConfirmMode.Confirms,
+                            TimeSpan.FromSeconds(2)
+                        );
+                        builder.Publish<RabbitMqPublishMessage>(
+                            route => route
+                               .ToFanoutAddress("recovering-address")
+                               .UseChannelGroup("recovering-group")
+                               .WithSerializer<CloudEventMessageSerializer>()
+                        );
+                    }
+                );
 
             await using var serviceProvider = services.BuildServiceProvider();
 
