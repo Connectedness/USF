@@ -8,12 +8,14 @@ public sealed class UsfBuilder
     public UsfBuilder(
         IServiceCollection services,
         MessageContractRegistryBuilder messageContracts,
-        OutboundTopologyRegistrationCatalog outboundTopologies
+        OutboundTopologyRegistrationCatalog outboundTopologies,
+        InboundTopologyRegistrationCatalog inboundTopologies
     )
     {
         Services = services ?? throw new ArgumentNullException(nameof(services));
         MessageContracts = messageContracts ?? throw new ArgumentNullException(nameof(messageContracts));
         OutboundTopologies = outboundTopologies ?? throw new ArgumentNullException(nameof(outboundTopologies));
+        InboundTopologies = inboundTopologies ?? throw new ArgumentNullException(nameof(inboundTopologies));
     }
 
     public IServiceCollection Services { get; }
@@ -21,6 +23,8 @@ public sealed class UsfBuilder
     public MessageContractRegistryBuilder MessageContracts { get; }
 
     public OutboundTopologyRegistrationCatalog OutboundTopologies { get; }
+
+    public InboundTopologyRegistrationCatalog InboundTopologies { get; }
 
     public UsfBuilder MapMessageContracts(Action<MessageContractRegistryBuilder> configure)
     {

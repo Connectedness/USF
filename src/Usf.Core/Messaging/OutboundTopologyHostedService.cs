@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
@@ -8,19 +7,16 @@ namespace Usf.Core.Messaging;
 
 public sealed class OutboundTopologyHostedService : IHostedService
 {
-    private readonly IEnumerable<IOutboundTopologyProvisioner> _topologyProvisioners;
+    private readonly TopologyProvisioningHostedService _inner;
 
     public OutboundTopologyHostedService(IEnumerable<IOutboundTopologyProvisioner> topologyProvisioners)
     {
-        _topologyProvisioners = topologyProvisioners ?? throw new ArgumentNullException(nameof(topologyProvisioners));
+        _inner = new TopologyProvisioningHostedService(topologyProvisioners);
     }
 
     public async Task StartAsync(CancellationToken cancellationToken)
     {
-        foreach (var topologyProvisioner in _topologyProvisioners)
-        {
-            await topologyProvisioner.ProvisionAsync(cancellationToken).ConfigureAwait(false);
-        }
+        await _inner.StartAsync(cancellationToken).ConfigureAwait(false);
     }
 
     public Task StopAsync(CancellationToken cancellationToken)

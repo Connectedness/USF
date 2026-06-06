@@ -83,6 +83,27 @@ public sealed class CloudEventMessageSerializer : IMessageSerializer
         return new ValueTask<CloudEventEnvelope>(envelope);
     }
 
+    public ValueTask<object?> DeserializeAsync(
+        CloudEventEnvelope envelope,
+        Type messageType,
+        CancellationToken cancellationToken = default
+    )
+    {
+        if (messageType is null)
+        {
+            throw new ArgumentNullException(nameof(messageType));
+        }
+
+        try
+        {
+            return new ValueTask<object?>(_payloadCodec.Decode(envelope.Data, messageType));
+        }
+        catch (Exception exception)
+        {
+            throw new MessageDeserializationException(messageType, exception);
+        }
+    }
+
     private static string GetRequiredType(string? type)
     {
         if (string.IsNullOrWhiteSpace(type))

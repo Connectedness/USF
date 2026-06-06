@@ -104,5 +104,14 @@ public class TopologyPublisherMemoryBenchmark
             );
             return new ValueTask<CloudEventEnvelope>(envelope);
         }
+
+        public ValueTask<object?> DeserializeAsync(
+            CloudEventEnvelope envelope,
+            Type messageType,
+            CancellationToken cancellationToken = default
+        )
+        {
+            return new ValueTask<object?>((object?) null);
+        }
     }
 }

@@ -6,35 +6,25 @@ using Usf.Core.Messaging.Errors;
 
 namespace Usf.Core.Messaging;
 
-public sealed class OutboundTopology : IOutboundTopology
+public sealed class OutboundTopology : Topology<OutboundTarget>, IOutboundTopology
 {
     private readonly IReadOnlyDictionary<Type, OutboundTarget> _targetsByMessageType;
-    private readonly IReadOnlyDictionary<string, OutboundTarget> _targetsByName;
 
     public OutboundTopology(
         IDictionary<Type, OutboundTarget> targetsByMessageType,
         IDictionary<string, OutboundTarget> targetsByName
-    )
+    ) : base(targetsByName)
     {
         if (targetsByMessageType is null)
         {
             throw new ArgumentNullException(nameof(targetsByMessageType));
         }
 
-        if (targetsByName is null)
-        {
-            throw new ArgumentNullException(nameof(targetsByName));
-        }
-
         _targetsByMessageType =
             new ReadOnlyDictionary<Type, OutboundTarget>(
                 new Dictionary<Type, OutboundTarget>(targetsByMessageType)
             );
-        _targetsByName =
-            new ReadOnlyDictionary<string, OutboundTarget>(
-                new Dictionary<string, OutboundTarget>(targetsByName, StringComparer.Ordinal)
-            );
-        Targets = _targetsByMessageType.Values.Concat(_targetsByName.Values).Distinct().ToArray();
+        Targets = _targetsByMessageType.Values.Concat(Entries).Distinct().ToArray();
     }
 
     public IReadOnlyCollection<OutboundTarget> Targets { get; }
@@ -83,7 +73,7 @@ public sealed class OutboundTopology : IOutboundTopology
             throw new ArgumentException("The value cannot be null or whitespace.", nameof(name));
         }
 
-        if (!_targetsByName.TryGetValue(name, out var target))
+        if (!TryGetEntry(name, out var target) || target is null)
         {
             throw new OutboundTargetNotFoundException(name);
         }
@@ -110,6 +100,6 @@ public sealed class OutboundTopology : IOutboundTopology
             throw new ArgumentException("The value cannot be null or whitespace.", nameof(name));
         }
 
-        return _targetsByName.TryGetValue(name, out target);
+        return TryGetEntry(name, out target);
     }
 }

@@ -150,5 +150,10 @@ public sealed class CloudEventMessageSerializerTests
         {
             return _payload;
         }
+
+        public object? Decode(byte[] data, Type messageType)
+        {
+            return new EnvelopeMessage("decoded");
+        }
     }
 }

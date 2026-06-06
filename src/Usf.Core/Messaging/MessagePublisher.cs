@@ -135,9 +135,10 @@ public sealed class MessagePublisher : IMessagePublisher
             throw new ArgumentNullException(nameof(message));
         }
 
-        var resolvedTarget = target ?? _outboundTopologyRegistry
-           .GetRequiredTopology(topologyName)
-           .GetRequiredTarget<T>();
+        var resolvedTarget = target ??
+                             _outboundTopologyRegistry
+                                .GetRequiredTopology(topologyName)
+                                .GetRequiredTarget<T>();
         ValidateExplicitTargetTopology(resolvedTarget, topologyName, target is not null);
         if (resolvedTarget is not OutboundTarget<T> typedTarget)
         {

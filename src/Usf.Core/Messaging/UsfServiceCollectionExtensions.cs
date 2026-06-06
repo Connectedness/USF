@@ -1,3 +1,4 @@
+using System;
 using System.Linq;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -13,11 +14,12 @@ public static class UsfServiceCollectionExtensions
     {
         if (services is null)
         {
-            throw new System.ArgumentNullException(nameof(services));
+            throw new ArgumentNullException(nameof(services));
         }
 
         var messageContracts = GetOrAddMessageContracts(services);
         var outboundTopologies = GetOrAddOutboundTopologies(services);
+        var inboundTopologies = GetOrAddInboundTopologies(services);
 
         services.AddOptions<CloudEventsOptions>()
            .Validate(
@@ -37,6 +39,11 @@ public static class UsfServiceCollectionExtensions
             static serviceProvider => serviceProvider.GetRequiredService<CloudEventMessageSerializer>()
         );
         services.TryAddSingleton<IOutboundTopologyRegistry, OutboundTopologyRegistry>();
+        services.TryAddSingleton<IInboundTopologyRegistry, InboundTopologyRegistry>();
+        services.TryAddSingleton<CloudEventsInboundMessageInspector>();
+        services.TryAddSingleton<FrameworkMessageAcknowledgementMiddleware>();
+        services.TryAddSingleton<MessageDeserializationMiddleware>();
+        services.TryAddSingleton<MessageHandlerInvoker>();
         services.TryAddSingleton<IMessagePublisher>(
             static serviceProvider => new MessagePublisher(
                 serviceProvider.GetRequiredService<IOutboundTopologyRegistry>()
@@ -57,9 +64,19 @@ public static class UsfServiceCollectionExtensions
                .GetRequiredService<IOutboundTopologyRegistry>()
                .GetRequiredTopology(TopologyName.Default)
         );
-        services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, OutboundTopologyHostedService>());
+        services.TryAddSingleton<IInboundTopology>(
+            static serviceProvider => serviceProvider
+               .GetRequiredService<IInboundTopologyRegistry>()
+               .GetRequiredTopology(TopologyName.Default)
+        );
+        services.TryAddSingleton<InboundTopology>(
+            static serviceProvider => (InboundTopology) serviceProvider
+               .GetRequiredService<IInboundTopologyRegistry>()
+               .GetRequiredTopology(TopologyName.Default)
+        );
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, TopologyProvisioningHostedService>());
 
-        return new UsfBuilder(services, messageContracts, outboundTopologies);
+        return new UsfBuilder(services, messageContracts, outboundTopologies, inboundTopologies);
     }
 
     private static MessageContractRegistryBuilder GetOrAddMessageContracts(IServiceCollection services)
@@ -92,6 +109,23 @@ public static class UsfServiceCollectionExtensions
         }
 
         OutboundTopologyRegistrationCatalog catalog = new ();
+        services.TryAddSingleton(catalog);
+        return catalog;
+    }
+
+    private static InboundTopologyRegistrationCatalog GetOrAddInboundTopologies(IServiceCollection services)
+    {
+        var existing = services
+           .Select(static descriptor => descriptor.ImplementationInstance)
+           .OfType<InboundTopologyRegistrationCatalog>()
+           .FirstOrDefault();
+
+        if (existing is not null)
+        {
+            return existing;
+        }
+
+        InboundTopologyRegistrationCatalog catalog = new ();
         services.TryAddSingleton(catalog);
         return catalog;
     }

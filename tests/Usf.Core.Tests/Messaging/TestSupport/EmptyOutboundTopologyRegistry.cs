@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using Usf.Core.Messaging;
 
@@ -9,7 +10,7 @@ public sealed class EmptyOutboundTopologyRegistry : IOutboundTopologyRegistry
 
     public IOutboundTopology GetRequiredTopology(TopologyName name)
     {
-        throw new System.InvalidOperationException(
+        throw new InvalidOperationException(
             $"Outbound topology '{name.Value}' is not registered. Registered outbound topologies: {OutboundTopologyRegistrationCatalog.FormatNames(Names)}."
         );
     }
