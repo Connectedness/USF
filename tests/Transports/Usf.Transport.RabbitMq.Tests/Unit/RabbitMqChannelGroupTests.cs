@@ -1159,6 +1159,29 @@ public sealed class RabbitMqChannelGroupTests
     }
 
     [Fact]
+    public void RabbitMqTopologyCompiler_WarnsWhenTopologyIsEmpty()
+    {
+        var loggerProvider = new RecordingLoggerProvider();
+        using var loggerFactory = new RecordingLoggerFactory(loggerProvider);
+        var services = new ServiceCollection();
+        services.AddSingleton<ILoggerFactory>(loggerFactory);
+        services.AddTestCloudEvents()
+           .AddRabbitMqTopology(
+                "empty",
+                builder => builder.UseConnectionFactory(static _ => new ConnectionFactory())
+            );
+        using var serviceProvider = services.BuildServiceProvider();
+
+        _ = serviceProvider.GetRequiredKeyedService<RabbitMqTopology>(new TopologyName("empty"));
+
+        loggerProvider.Entries.Should().Contain(
+            entry => entry.LogLevel == LogLevel.Warning &&
+                     entry.Message ==
+                     "RabbitMQ topology 'empty' is empty: it declares no outbound targets and no inbound endpoints"
+        );
+    }
+
+    [Fact]
     public void RabbitMqTopologyCompiler_AssignsExplicitChannelGroupToEveryReferencingTarget()
     {
         var services = new ServiceCollection();

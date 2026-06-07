@@ -88,6 +88,7 @@ public sealed class RabbitMqTopologyCompiler
         );
         channelSource.SetChannelBudget(worstCaseChannelCount, description);
         LogWorstCaseChannelCount(worstCaseChannelCount, description);
+        WarnWhenEmpty(topologyName, targets, endpoints);
 
         return new RabbitMqTopology(
             new Topology(topologyName, defaultTargetsByMessageType, targetsByName, endpointsByName),
@@ -1313,6 +1314,23 @@ public sealed class RabbitMqTopologyCompiler
             "RabbitMQ topology may open up to {ChannelCount} channels ({Description})",
             worstCaseChannelCount,
             description
+        );
+    }
+
+    private void WarnWhenEmpty(
+        TopologyName topologyName,
+        IReadOnlyList<OutboundTarget> targets,
+        IReadOnlyList<RabbitMqInboundEndpoint> endpoints
+    )
+    {
+        if (targets.Count > 0 || endpoints.Count > 0)
+        {
+            return;
+        }
+
+        _loggerFactory.CreateLogger(typeof(RabbitMqTopologyCompiler)).LogWarning(
+            "RabbitMQ topology '{TopologyName}' is empty: it declares no outbound targets and no inbound endpoints",
+            topologyName.Value
         );
     }
 }
