@@ -3,21 +3,23 @@ using System.Collections.Generic;
 
 namespace Usf.Core.Messaging;
 
-public abstract class SingleTopologyRegistry<TTopology>
+/// <summary>
+/// A registry that exposes exactly one topology under <see cref="TopologyName.Default" />. It is primarily useful
+/// for direct construction in tests and benchmarks where building a full service provider would be overkill.
+/// </summary>
+public sealed class SingleTopologyRegistry : ITopologyRegistry
 {
-    private readonly TTopology _topology;
+    private readonly ITopology _topology;
 
-    protected SingleTopologyRegistry(TTopology topology)
+    public SingleTopologyRegistry(ITopology topology)
     {
         _topology = topology ?? throw new ArgumentNullException(nameof(topology));
         Names = [TopologyName.Default];
     }
 
-    protected abstract string Direction { get; }
-
     public IReadOnlyCollection<TopologyName> Names { get; }
 
-    public TTopology GetRequiredTopology(TopologyName name)
+    public ITopology GetRequiredTopology(TopologyName name)
     {
         if (TryGetTopology(name, out var topology) && topology is not null)
         {
@@ -25,11 +27,11 @@ public abstract class SingleTopologyRegistry<TTopology>
         }
 
         throw new InvalidOperationException(
-            $"{ToSentenceCase(Direction)} topology '{name.Value}' is not registered. Registered {Direction} topologies: {TopologyRegistrationCatalog.FormatNames(Names)}."
+            $"Topology '{name.Value}' is not registered. Registered topologies: {TopologyRegistrationCatalog.FormatNames(Names)}."
         );
     }
 
-    public bool TryGetTopology(TopologyName name, out TTopology? topology)
+    public bool TryGetTopology(TopologyName name, out ITopology? topology)
     {
         if (name == TopologyName.Default)
         {
@@ -39,15 +41,5 @@ public abstract class SingleTopologyRegistry<TTopology>
 
         topology = default;
         return false;
-    }
-
-    protected static string ToSentenceCase(string value)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            throw new ArgumentException("The value cannot be null or whitespace.", nameof(value));
-        }
-
-        return char.ToUpperInvariant(value[0]) + value.Substring(1);
     }
 }

@@ -3,7 +3,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
-using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using RabbitMQ.Client;
@@ -14,18 +13,18 @@ namespace Usf.Transport.RabbitMq;
 
 public static class RabbitMqTransportModule
 {
-    public static UsfBuilder AddRabbitMqInboundTopology(
+    public static UsfBuilder AddRabbitMqTopology(
         this UsfBuilder builder,
-        Action<RabbitMqInboundTopologyBuilder> configure
+        Action<RabbitMqTopologyBuilder> configure
     )
     {
-        return builder.AddRabbitMqInboundTopology(TopologyName.Default, configure);
+        return builder.AddRabbitMqTopology(TopologyName.Default, configure);
     }
 
-    public static UsfBuilder AddRabbitMqInboundTopology(
+    public static UsfBuilder AddRabbitMqTopology(
         this UsfBuilder builder,
         TopologyName topologyName,
-        Action<RabbitMqInboundTopologyBuilder> configure
+        Action<RabbitMqTopologyBuilder> configure
     )
     {
         if (builder is null)
@@ -38,200 +37,140 @@ public static class RabbitMqTransportModule
             throw new ArgumentNullException(nameof(configure));
         }
 
-        var topologyBuilder = new RabbitMqInboundTopologyBuilder();
+        var topologyBuilder = new RabbitMqTopologyBuilder();
         configure(topologyBuilder);
         var configuration = topologyBuilder.Build();
         var services = builder.Services;
-        builder.InboundTopologies.Add(topologyName);
+        builder.Topologies.Add(topologyName);
 
-        services.AddKeyedSingleton<RabbitMqInboundTopology>(
+        services.AddKeyedSingleton<RabbitMqTopology>(
             topologyName,
             (serviceProvider, _) =>
             {
                 var loggerFactory = serviceProvider.GetService<ILoggerFactory>() ?? NullLoggerFactory.Instance;
                 RabbitMqConnectionProvider connectionProvider = new (
-                    cancellationToken => CreateInboundConnectionAsync(
+                    cancellationToken => CreateConnectionAsync(
                         configuration,
                         serviceProvider,
                         cancellationToken
                     ),
                     loggerFactory.CreateLogger<RabbitMqConnectionProvider>()
                 );
-                RabbitMqInboundTopologyCompiler compiler = new (
+                RabbitMqTopologyCompiler compiler = new (
                     serviceProvider.GetRequiredService<IMessageContractRegistry>(),
                     loggerFactory,
+                    serializerType => (IMessageSerializer?) serviceProvider.GetService(serializerType),
                     serviceType => IsServiceRegistered(serviceProvider, serviceType)
                 );
                 return compiler.Compile(topologyName, configuration, connectionProvider);
             }
         );
-        services.AddKeyedSingleton<IInboundTopology>(
+        services.AddKeyedSingleton<ITopology>(
             topologyName,
             (serviceProvider, _) => serviceProvider
-               .GetRequiredKeyedService<RabbitMqInboundTopology>(topologyName)
-               .InboundTopology
+               .GetRequiredKeyedService<RabbitMqTopology>(topologyName)
+               .Topology
         );
-        services.AddKeyedSingleton<InboundTopology>(
+        services.AddKeyedSingleton<Topology>(
             topologyName,
             (serviceProvider, _) => serviceProvider
-               .GetRequiredKeyedService<RabbitMqInboundTopology>(topologyName)
-               .InboundTopology
+               .GetRequiredKeyedService<RabbitMqTopology>(topologyName)
+               .Topology
         );
         if (topologyName == TopologyName.Default)
         {
-            services.TryAddSingleton<RabbitMqInboundTopology>(
-                serviceProvider => serviceProvider.GetRequiredKeyedService<RabbitMqInboundTopology>(topologyName)
+            services.TryAddSingleton<RabbitMqTopology>(
+                serviceProvider => serviceProvider.GetRequiredKeyedService<RabbitMqTopology>(topologyName)
             );
         }
 
         services.AddSingleton<ITopologyProvisioner>(
-            serviceProvider => new RabbitMqInboundTopologyProvisioner(
-                serviceProvider.GetRequiredKeyedService<RabbitMqInboundTopology>(topologyName)
+            serviceProvider => new RabbitMqTopologyProvisioner(
+                serviceProvider.GetRequiredKeyedService<RabbitMqTopology>(topologyName)
             )
         );
-        services.AddSingleton<IHostedService>(
-            serviceProvider => new RabbitMqInboundConsumerHostedService(
-                serviceProvider.GetRequiredKeyedService<RabbitMqInboundTopology>(topologyName),
-                serviceProvider.GetRequiredService<IServiceScopeFactory>(),
-                serviceProvider.GetService<ILogger<RabbitMqInboundConsumerHostedService>>()
-            )
-        );
+
+        if (configuration.HasInboundEndpoints)
+        {
+            services.AddSingleton<ITopologyRuntime>(
+                serviceProvider => new RabbitMqTopologyRuntime(
+                    serviceProvider.GetRequiredKeyedService<RabbitMqTopology>(topologyName),
+                    serviceProvider.GetRequiredService<IServiceScopeFactory>(),
+                    serviceProvider.GetService<ILogger<RabbitMqTopologyRuntime>>()
+                )
+            );
+        }
 
         return builder;
     }
 
+    /// <summary>
+    /// Compatibility wrapper that registers a publish-oriented RabbitMQ topology. It compiles to the same unified
+    /// <see cref="RabbitMqTopology" /> as <see cref="AddRabbitMqTopology(UsfBuilder, Action{RabbitMqTopologyBuilder})" />.
+    /// </summary>
     public static UsfBuilder AddRabbitMqOutboundTopology(
         this UsfBuilder builder,
-        Action<RabbitMqOutboundTopologyBuilder> configure
+        Action<RabbitMqTopologyBuilder> configure
     )
     {
-        return builder.AddRabbitMqOutboundTopology(TopologyName.Default, configure);
+        return builder.AddRabbitMqTopology(TopologyName.Default, configure);
     }
 
+    /// <inheritdoc cref="AddRabbitMqOutboundTopology(UsfBuilder, Action{RabbitMqTopologyBuilder})" />
     public static UsfBuilder AddRabbitMqOutboundTopology(
         this UsfBuilder builder,
         TopologyName topologyName,
-        Action<RabbitMqOutboundTopologyBuilder> configure
+        Action<RabbitMqTopologyBuilder> configure
     )
     {
-        if (builder is null)
-        {
-            throw new ArgumentNullException(nameof(builder));
-        }
+        return builder.AddRabbitMqTopology(topologyName, configure);
+    }
 
-        if (configure is null)
-        {
-            throw new ArgumentNullException(nameof(configure));
-        }
+    /// <summary>
+    /// Compatibility wrapper that registers a consume-oriented RabbitMQ topology. It compiles to the same unified
+    /// <see cref="RabbitMqTopology" /> as <see cref="AddRabbitMqTopology(UsfBuilder, Action{RabbitMqTopologyBuilder})" />.
+    /// </summary>
+    public static UsfBuilder AddRabbitMqInboundTopology(
+        this UsfBuilder builder,
+        Action<RabbitMqTopologyBuilder> configure
+    )
+    {
+        return builder.AddRabbitMqTopology(TopologyName.Default, configure);
+    }
 
-        var topologyBuilder = new RabbitMqOutboundTopologyBuilder();
-        configure(topologyBuilder);
-        var configuration = topologyBuilder.Build();
-        var services = builder.Services;
-        builder.OutboundTopologies.Add(topologyName);
-
-        services.AddKeyedSingleton<RabbitMqOutboundTopology>(
-            topologyName,
-            (serviceProvider, _) =>
-            {
-                var loggerFactory = serviceProvider.GetService<ILoggerFactory>() ?? NullLoggerFactory.Instance;
-                RabbitMqConnectionProvider connectionProvider = new (
-                    cancellationToken => CreateConnectionAsync(configuration, serviceProvider, cancellationToken),
-                    loggerFactory.CreateLogger<RabbitMqConnectionProvider>()
-                );
-                RabbitMqOutboundTopologyCompiler compiler = new (
-                    serviceProvider.GetRequiredService<IMessageContractRegistry>(),
-                    loggerFactory,
-                    serializerType => (IMessageSerializer?) serviceProvider.GetService(serializerType)
-                );
-                return compiler.Compile(topologyName, configuration, connectionProvider);
-            }
-        );
-        services.AddKeyedSingleton<IOutboundTopology>(
-            topologyName,
-            (serviceProvider, _) => serviceProvider
-               .GetRequiredKeyedService<RabbitMqOutboundTopology>(topologyName)
-               .OutboundTopology
-        );
-        services.AddKeyedSingleton<OutboundTopology>(
-            topologyName,
-            (serviceProvider, _) => serviceProvider
-               .GetRequiredKeyedService<RabbitMqOutboundTopology>(topologyName)
-               .OutboundTopology
-        );
-        services.AddKeyedSingleton<IOutboundTargetRegistry>(
-            topologyName,
-            (serviceProvider, _) => serviceProvider
-               .GetRequiredKeyedService<RabbitMqOutboundTopology>(topologyName)
-               .OutboundTopology
-        );
-        if (topologyName == TopologyName.Default)
-        {
-            services.TryAddSingleton<RabbitMqOutboundTopology>(
-                serviceProvider => serviceProvider.GetRequiredKeyedService<RabbitMqOutboundTopology>(topologyName)
-            );
-        }
-
-        services.AddSingleton<IOutboundTopologyProvisioner>(
-            serviceProvider => new RabbitMqOutboundTopologyProvisioner(
-                serviceProvider.GetRequiredKeyedService<RabbitMqOutboundTopology>(topologyName)
-            )
-        );
-        services.AddSingleton<ITopologyProvisioner>(
-            serviceProvider => new RabbitMqOutboundTopologyProvisioner(
-                serviceProvider.GetRequiredKeyedService<RabbitMqOutboundTopology>(topologyName)
-            )
-        );
-
-        return builder;
+    /// <inheritdoc cref="AddRabbitMqInboundTopology(UsfBuilder, Action{RabbitMqTopologyBuilder})" />
+    public static UsfBuilder AddRabbitMqInboundTopology(
+        this UsfBuilder builder,
+        TopologyName topologyName,
+        Action<RabbitMqTopologyBuilder> configure
+    )
+    {
+        return builder.AddRabbitMqTopology(topologyName, configure);
     }
 
     private static Task<IConnection> CreateConnectionAsync(
-        RabbitMqOutboundTopologyConfiguration configuration,
+        RabbitMqTopologyConfiguration configuration,
         IServiceProvider serviceProvider,
         CancellationToken cancellationToken
     )
     {
         var connectionFactory = configuration.CreateConnectionFactory?.Invoke(serviceProvider) ??
-                                throw new OutboundTopologyValidationException(
+                                throw new TopologyValidationException(
                                     ["A RabbitMQ connection factory must be configured."]
                                 );
 
         if (!connectionFactory.AutomaticRecoveryEnabled)
         {
-            throw new OutboundTopologyValidationException(
+            throw new TopologyValidationException(
                 [
                     "RabbitMQ automatic connection recovery must be enabled. Configure ConnectionFactory.AutomaticRecoveryEnabled to true."
                 ]
             );
         }
 
-        return connectionFactory.CreateConnectionAsync(cancellationToken);
-    }
-
-    private static Task<IConnection> CreateInboundConnectionAsync(
-        RabbitMqInboundTopologyConfiguration configuration,
-        IServiceProvider serviceProvider,
-        CancellationToken cancellationToken
-    )
-    {
-        var connectionFactory = configuration.CreateConnectionFactory?.Invoke(serviceProvider) ??
-                                throw new InboundTopologyValidationException(
-                                    ["A RabbitMQ connection factory must be configured."]
-                                );
-
-        if (!connectionFactory.AutomaticRecoveryEnabled)
+        if (configuration.HasInboundEndpoints && !connectionFactory.TopologyRecoveryEnabled)
         {
-            throw new InboundTopologyValidationException(
-                [
-                    "RabbitMQ automatic connection recovery must be enabled for inbound topologies. Configure ConnectionFactory.AutomaticRecoveryEnabled to true."
-                ]
-            );
-        }
-
-        if (!connectionFactory.TopologyRecoveryEnabled)
-        {
-            throw new InboundTopologyValidationException(
+            throw new TopologyValidationException(
                 [
                     "RabbitMQ topology recovery must be enabled for inbound topologies so RabbitMQ.Client can recover consumer subscriptions. Configure ConnectionFactory.TopologyRecoveryEnabled to true."
                 ]

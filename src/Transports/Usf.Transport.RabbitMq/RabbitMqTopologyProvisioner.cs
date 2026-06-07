@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 using RabbitMQ.Client;
@@ -8,33 +9,86 @@ using Usf.Transport.RabbitMq.Configuration;
 
 namespace Usf.Transport.RabbitMq;
 
-public sealed class RabbitMqInboundTopologyProvisioner : ITopologyProvisioner
+/// <summary>
+/// Provisions the broker resources (exchanges, queues, and bindings) of a single <see cref="RabbitMqTopology" />.
+/// It runs as an <see cref="ITopologyProvisioner" /> so that the shared topology-provisioning hosted service
+/// declares all broker resources before any topology runtime starts.
+/// </summary>
+public sealed class RabbitMqTopologyProvisioner : ITopologyProvisioner
 {
-    private readonly RabbitMqInboundTopology _inboundTopology;
+    private readonly RabbitMqTopology _topology;
 
-    public RabbitMqInboundTopologyProvisioner(RabbitMqInboundTopology inboundTopology)
+    public RabbitMqTopologyProvisioner(RabbitMqTopology topology)
     {
-        _inboundTopology = inboundTopology ?? throw new ArgumentNullException(nameof(inboundTopology));
+        _topology = topology ?? throw new ArgumentNullException(nameof(topology));
     }
 
     public async Task ProvisionAsync(CancellationToken cancellationToken = default)
     {
-        await using var channel = await _inboundTopology.CreateChannelAsync(cancellationToken)
-           .ConfigureAwait(false);
+        var outcome = "success";
+        var activity = OutboundDiagnostics.ActivitySource.StartActivity("usf.outbound.topology.provision");
+        var startedTimestamp = Stopwatch.GetTimestamp();
+        KeyValuePair<string, object?>[] attemptTags =
+        [
+            new (OutboundDiagnostics.TransportNameTagName, "rabbitmq")
+        ];
 
-        foreach (var exchange in _inboundTopology.Exchanges)
+        OutboundDiagnostics.TopologyProvisioningAttempts.Add(1, attemptTags);
+        activity?.SetTag(OutboundDiagnostics.TransportNameTagName, "rabbitmq");
+
+        try
         {
-            await ProvisionExchangeAsync(channel, exchange, cancellationToken).ConfigureAwait(false);
+            await using var channel = await _topology.CreateChannelAsync(cancellationToken).ConfigureAwait(false);
+
+            foreach (var exchange in _topology.Exchanges)
+            {
+                await ProvisionExchangeAsync(channel, exchange, cancellationToken).ConfigureAwait(false);
+            }
+
+            foreach (var queue in _topology.Queues)
+            {
+                await ProvisionQueueAsync(channel, queue, cancellationToken).ConfigureAwait(false);
+            }
+
+            foreach (var binding in _topology.Bindings)
+            {
+                await ProvisionBindingAsync(channel, binding, cancellationToken).ConfigureAwait(false);
+            }
+
+            activity?.SetStatus(ActivityStatusCode.Ok);
         }
-
-        foreach (var queue in _inboundTopology.Queues)
+        catch (OperationCanceledException)
         {
-            await ProvisionQueueAsync(channel, queue, cancellationToken).ConfigureAwait(false);
+            outcome = "cancelled";
+            activity?.SetTag(OutboundDiagnostics.OutcomeTagName, outcome);
+            throw;
         }
-
-        foreach (var binding in _inboundTopology.Bindings)
+        catch
         {
-            await ProvisionBindingAsync(channel, binding, cancellationToken).ConfigureAwait(false);
+            outcome = "failure";
+            OutboundDiagnostics.TopologyProvisioningFailures.Add(
+                1,
+                new[]
+                {
+                    new KeyValuePair<string, object?>(OutboundDiagnostics.TransportNameTagName, "rabbitmq"),
+                    new KeyValuePair<string, object?>(OutboundDiagnostics.OutcomeTagName, outcome)
+                }
+            );
+            activity?.SetStatus(ActivityStatusCode.Error);
+            activity?.SetTag(OutboundDiagnostics.OutcomeTagName, outcome);
+            throw;
+        }
+        finally
+        {
+            KeyValuePair<string, object?>[] durationTags =
+            [
+                new (OutboundDiagnostics.TransportNameTagName, "rabbitmq"),
+                new (OutboundDiagnostics.OutcomeTagName, outcome)
+            ];
+            var durationMilliseconds = (Stopwatch.GetTimestamp() - startedTimestamp) * 1000d / Stopwatch.Frequency;
+            OutboundDiagnostics.TopologyProvisioningDuration.Record(durationMilliseconds, durationTags);
+            activity?.SetTag(OutboundDiagnostics.OutcomeTagName, outcome);
+            activity?.Dispose();
         }
     }
 

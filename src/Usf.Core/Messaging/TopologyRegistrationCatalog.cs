@@ -5,12 +5,15 @@ using System.Linq;
 
 namespace Usf.Core.Messaging;
 
-public abstract class TopologyRegistrationCatalog
+/// <summary>
+/// Tracks the registered topology names. Topology names form a single namespace keyed by <see cref="TopologyName" />
+/// that matches the one-connection/client ownership boundary, so registering the same name twice fails even when
+/// one registration is publish-only and the other is consume-only.
+/// </summary>
+public sealed class TopologyRegistrationCatalog
 {
     private readonly List<TopologyName> _names = [];
     private readonly HashSet<TopologyName> _namesSet = [];
-
-    protected abstract string Direction { get; }
 
     public IReadOnlyCollection<TopologyName> Names => new ReadOnlyCollection<TopologyName>(_names);
 
@@ -19,7 +22,7 @@ public abstract class TopologyRegistrationCatalog
         if (!_namesSet.Add(name))
         {
             throw new InvalidOperationException(
-                $"{ToSentenceCase(Direction)} topology '{name.Value}' is already registered. Registered {Direction} topologies: {FormatNames(_names)}."
+                $"Topology '{name.Value}' is already registered. Registered topologies: {FormatNames(_names)}."
             );
         }
 
@@ -39,15 +42,5 @@ public abstract class TopologyRegistrationCatalog
            .ToArray();
 
         return values.Length == 0 ? "(none)" : string.Join(", ", values);
-    }
-
-    protected static string ToSentenceCase(string value)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            throw new ArgumentException("The value cannot be null or whitespace.", nameof(value));
-        }
-
-        return char.ToUpperInvariant(value[0]) + value.Substring(1);
     }
 }

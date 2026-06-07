@@ -13,17 +13,16 @@ public sealed class MessagePublisher : IMessagePublisher
 {
     private const string SerializedMessageTypeName = "serialized";
 
-    private readonly IOutboundTopologyRegistry _outboundTopologyRegistry;
+    private readonly ITopologyRegistry _topologyRegistry;
 
     [ActivatorUtilitiesConstructor]
-    public MessagePublisher(IOutboundTopologyRegistry outboundTopologyRegistry)
+    public MessagePublisher(ITopologyRegistry topologyRegistry)
     {
-        _outboundTopologyRegistry = outboundTopologyRegistry ??
-                                    throw new ArgumentNullException(nameof(outboundTopologyRegistry));
+        _topologyRegistry = topologyRegistry ?? throw new ArgumentNullException(nameof(topologyRegistry));
     }
 
-    public MessagePublisher(IOutboundTopology outboundTopology)
-        : this(new SingleOutboundTopologyRegistry(outboundTopology)) { }
+    public MessagePublisher(ITopology topology)
+        : this(new SingleTopologyRegistry(topology)) { }
 
     public TopologyPublisher ForTopology(TopologyName topologyName)
     {
@@ -136,7 +135,7 @@ public sealed class MessagePublisher : IMessagePublisher
         }
 
         var resolvedTarget = target ??
-                             _outboundTopologyRegistry
+                             _topologyRegistry
                                 .GetRequiredTopology(topologyName)
                                 .GetRequiredTarget<T>();
         ValidateExplicitTargetTopology(resolvedTarget, topologyName, target is not null);

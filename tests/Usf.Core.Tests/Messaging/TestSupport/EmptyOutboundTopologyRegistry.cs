@@ -4,18 +4,18 @@ using Usf.Core.Messaging;
 
 namespace Usf.Core.Tests.Messaging.TestSupport;
 
-public sealed class EmptyOutboundTopologyRegistry : IOutboundTopologyRegistry
+public sealed class EmptyOutboundTopologyRegistry : ITopologyRegistry
 {
     public IReadOnlyCollection<TopologyName> Names { get; } = [];
 
-    public IOutboundTopology GetRequiredTopology(TopologyName name)
+    public ITopology GetRequiredTopology(TopologyName name)
     {
         throw new InvalidOperationException(
-            $"Outbound topology '{name.Value}' is not registered. Registered outbound topologies: {OutboundTopologyRegistrationCatalog.FormatNames(Names)}."
+            $"Topology '{name.Value}' is not registered. Registered topologies: {TopologyRegistrationCatalog.FormatNames(Names)}."
         );
     }
 
-    public bool TryGetTopology(TopologyName name, out IOutboundTopology? topology)
+    public bool TryGetTopology(TopologyName name, out ITopology? topology)
     {
         topology = null;
         return false;

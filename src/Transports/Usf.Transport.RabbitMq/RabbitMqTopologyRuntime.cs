@@ -5,7 +5,6 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using RabbitMQ.Client;
@@ -15,30 +14,39 @@ using Usf.Core.Messaging.Errors;
 
 namespace Usf.Transport.RabbitMq;
 
-public sealed class RabbitMqInboundConsumerHostedService : IHostedService
+/// <summary>
+/// The active consumer runtime for a RabbitMQ topology that contains inbound endpoints. It opens consumer
+/// channels, starts <c>BasicConsume</c> for each endpoint, drains in-flight handlers on stop, and disposes the
+/// topology's runtime resources. It is registered as an <see cref="ITopologyRuntime" /> only for topology
+/// instances that contain inbound endpoints, and is started by the shared
+/// <see cref="TopologyRuntimeHostedService" /> after topology provisioning completes.
+/// </summary>
+public sealed class RabbitMqTopologyRuntime : ITopologyRuntime
 {
     private readonly List<IChannel> _channels = [];
     private readonly List<ConsumerRegistration> _consumerRegistrations = [];
     private readonly ConcurrentDictionary<long, InFlightDelivery> _inFlightDeliveries = new ();
     private readonly ILogger _logger;
     private readonly IServiceScopeFactory _serviceScopeFactory;
-    private readonly RabbitMqInboundTopology _topology;
+    private readonly RabbitMqTopology _topology;
     private long _nextInFlightId;
     private int _started;
     private CancellationTokenSource? _stoppingCancellationTokenSource;
 
-    public RabbitMqInboundConsumerHostedService(
-        RabbitMqInboundTopology topology,
+    public RabbitMqTopologyRuntime(
+        RabbitMqTopology topology,
         IServiceScopeFactory serviceScopeFactory,
-        ILogger<RabbitMqInboundConsumerHostedService>? logger = null
+        ILogger<RabbitMqTopologyRuntime>? logger = null
     )
     {
         _topology = topology ?? throw new ArgumentNullException(nameof(topology));
         _serviceScopeFactory = serviceScopeFactory ?? throw new ArgumentNullException(nameof(serviceScopeFactory));
-        _logger = logger ?? NullLogger<RabbitMqInboundConsumerHostedService>.Instance;
+        _logger = logger ?? NullLogger<RabbitMqTopologyRuntime>.Instance;
     }
 
-    public async Task StartAsync(CancellationToken cancellationToken)
+    public TopologyName TopologyName => _topology.Topology.TopologyName;
+
+    public async Task StartAsync(CancellationToken cancellationToken = default)
     {
         if (Interlocked.Exchange(ref _started, 1) != 0)
         {
@@ -90,7 +98,7 @@ public sealed class RabbitMqInboundConsumerHostedService : IHostedService
         }
     }
 
-    public async Task StopAsync(CancellationToken cancellationToken)
+    public async Task StopAsync(CancellationToken cancellationToken = default)
     {
         if (Interlocked.Exchange(ref _started, 0) == 0)
         {

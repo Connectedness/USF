@@ -4,10 +4,16 @@ using System.Linq;
 
 namespace Usf.Core.Messaging.Errors;
 
-public sealed class OutboundTopologyValidationException : Exception
+/// <summary>
+/// Reports that a topology failed compile-time validation. The exception type is direction-neutral, but the
+/// individual validation messages remain precise and name the failed transport feature and direction where
+/// relevant, such as "RabbitMQ outbound target ...", "RabbitMQ inbound endpoint ...", "RabbitMQ exchange ...",
+/// or "RabbitMQ consumer channel group ...".
+/// </summary>
+public sealed class TopologyValidationException : Exception
 {
-    public OutboundTopologyValidationException(IReadOnlyList<string> validationErrors)
-        : base("Outbound topology validation failed.")
+    public TopologyValidationException(IReadOnlyList<string> validationErrors)
+        : base("Topology validation failed.")
     {
         if (validationErrors is null)
         {

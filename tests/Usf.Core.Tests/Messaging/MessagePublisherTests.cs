@@ -23,12 +23,14 @@ public sealed class MessagePublisherTests
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var target = new RecordingTarget<SampleMessage>("default", CloudEventsTestFactory.CreateSerializer());
-        var topology = new OutboundTopology(
+        var topology = new Core.Messaging.Topology(
+            TopologyName.Default,
             new Dictionary<Type, OutboundTarget>
             {
                 [typeof(SampleMessage)] = target
             },
-            new Dictionary<string, OutboundTarget>(StringComparer.Ordinal)
+            new Dictionary<string, OutboundTarget>(StringComparer.Ordinal),
+            new Dictionary<string, InboundEndpoint>(StringComparer.Ordinal)
         );
         var publisher = new MessagePublisher(topology);
         var message = new SampleMessage("hello");
@@ -123,7 +125,7 @@ public sealed class MessagePublisherTests
 
         var exception = (await action.Should().ThrowAsync<InvalidOperationException>()).Which;
         exception.Message.Should().Be(
-            "Outbound topology 'missing' is not registered. Registered outbound topologies: (none)."
+            "Topology 'missing' is not registered. Registered topologies: (none)."
         );
     }
 

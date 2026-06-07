@@ -7,7 +7,7 @@ using Xunit;
 
 namespace Usf.Core.Tests.Messaging;
 
-public sealed class MessageContractOutboundTopologyValidatorTests
+public sealed class OutboundTargetContractValidatorTests
 {
     [Fact]
     public void CollectValidationErrors_ReportsEveryTypedTargetWithoutCanonicalDiscriminator()
@@ -24,7 +24,7 @@ public sealed class MessageContractOutboundTopologyValidatorTests
         ];
         List<string> validationErrors = [];
 
-        MessageContractOutboundTopologyValidator.CollectValidationErrors(registry, typedTargets, validationErrors);
+        OutboundTargetContractValidator.CollectValidationErrors(registry, typedTargets, validationErrors);
 
         validationErrors.Should().Equal(
             "Outbound target 'first' publishes unregistered CloudEvents message type 'Usf.Core.Tests.Messaging.TestSupport.SampleMessage'. Register its canonical discriminator with MessageContractRegistryBuilder.Map<T>(...) or MapOutbound<T>(...).",
@@ -39,7 +39,7 @@ public sealed class MessageContractOutboundTopologyValidatorTests
         KeyValuePair<string, Type>[] typedTargets = [new ("sample", typeof(SampleMessage))];
         List<string> validationErrors = [];
 
-        MessageContractOutboundTopologyValidator.CollectValidationErrors(registry, typedTargets, validationErrors);
+        OutboundTargetContractValidator.CollectValidationErrors(registry, typedTargets, validationErrors);
 
         validationErrors.Should().BeEmpty();
     }

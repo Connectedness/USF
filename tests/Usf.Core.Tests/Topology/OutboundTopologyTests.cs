@@ -13,7 +13,8 @@ public sealed class OutboundTopologyTests
     public void GetRequiredTarget_SupportsNamedTargetLookup()
     {
         var target = new RecordingTarget<SampleMessage>("named", CloudEventsTestFactory.CreateSerializer());
-        var topology = new OutboundTopology(
+        var topology = new Core.Messaging.Topology(
+            TopologyName.Default,
             new Dictionary<Type, OutboundTarget>
             {
                 [typeof(SampleMessage)] = target
@@ -21,7 +22,8 @@ public sealed class OutboundTopologyTests
             new Dictionary<string, OutboundTarget>(StringComparer.Ordinal)
             {
                 ["named"] = target
-            }
+            },
+            new Dictionary<string, InboundEndpoint>(StringComparer.Ordinal)
         );
 
         var resolvedTarget = topology.GetRequiredTarget("named");

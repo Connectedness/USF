@@ -43,7 +43,7 @@ public sealed class RabbitMqPublishingIntegrationTests
 
             var services = new ServiceCollection();
             services.AddTestCloudEvents()
-               .AddRabbitMqOutboundTopology(
+               .AddRabbitMqTopology(
                     builder =>
                     {
                         builder.UseConnectionFactory(
@@ -138,7 +138,7 @@ public sealed class RabbitMqPublishingIntegrationTests
             }
 
             var publisher = serviceProvider.GetRequiredService<IMessagePublisher>();
-            var targetRegistry = serviceProvider.GetRequiredService<IOutboundTargetRegistry>();
+            var targetRegistry = serviceProvider.GetRequiredService<ITopology>();
             Activity? directProducerActivity = null;
             var directParentTraceId = default(ActivityTraceId);
             using var listener = new ActivityListener();
@@ -248,11 +248,11 @@ public sealed class RabbitMqPublishingIntegrationTests
             ExtractHeaderValue(headersMessage.BasicProperties.Headers!, "region").Should().Be("us");
 
             serviceProvider
-               .GetRequiredService<IOutboundTopology>()
+               .GetRequiredService<ITopology>()
                .GetRequiredTarget<RabbitMqPublishMessage>().Name
                .Should().Be(typeof(RabbitMqPublishMessage).FullName);
             serviceProvider
-               .GetRequiredService<IOutboundTopology>()
+               .GetRequiredService<ITopology>()
                .GetRequiredTarget<RabbitMqAuditMessage>().Name
                .Should().Be(typeof(RabbitMqAuditMessage).FullName);
             targetRegistry.GetRequiredTarget("topic-target").Should().NotBeNull();
@@ -285,7 +285,7 @@ public sealed class RabbitMqPublishingIntegrationTests
                     contracts => contracts.Map<RabbitMqPublishMessage>("tests.rabbitmq.publish.canonical")
                        .WithDataSchema("/schemas/canonical")
                 )
-               .AddRabbitMqOutboundTopology(
+               .AddRabbitMqTopology(
                     legacy,
                     builder =>
                     {
@@ -310,7 +310,7 @@ public sealed class RabbitMqPublishingIntegrationTests
                         );
                     }
                 )
-               .AddRabbitMqOutboundTopology(
+               .AddRabbitMqTopology(
                     modern,
                     builder =>
                     {
@@ -338,11 +338,13 @@ public sealed class RabbitMqPublishingIntegrationTests
 
             await using var serviceProvider = services.BuildServiceProvider();
 
-            var hostedService = serviceProvider.GetServices<IHostedService>().Should().ContainSingle().Which;
-            await hostedService.StartAsync(cancellationToken);
+            foreach (var hostedService in serviceProvider.GetServices<IHostedService>())
+            {
+                await hostedService.StartAsync(cancellationToken);
+            }
 
-            var legacyTopology = serviceProvider.GetRequiredKeyedService<RabbitMqOutboundTopology>(legacy);
-            var modernTopology = serviceProvider.GetRequiredKeyedService<RabbitMqOutboundTopology>(modern);
+            var legacyTopology = serviceProvider.GetRequiredKeyedService<RabbitMqTopology>(legacy);
+            var modernTopology = serviceProvider.GetRequiredKeyedService<RabbitMqTopology>(modern);
             var legacyConnection = await legacyTopology.GetConnectionAsync(cancellationToken);
             var modernConnection = await modernTopology.GetConnectionAsync(cancellationToken);
             legacyConnection.Should().NotBeSameAs(modernConnection);
@@ -393,7 +395,7 @@ public sealed class RabbitMqPublishingIntegrationTests
         {
             var services = new ServiceCollection();
             services.AddTestCloudEvents()
-               .AddRabbitMqOutboundTopology(
+               .AddRabbitMqTopology(
                     builder =>
                     {
                         builder.UseConnectionFactory(
@@ -425,7 +427,7 @@ public sealed class RabbitMqPublishingIntegrationTests
 
             var publisher = serviceProvider.GetRequiredService<IMessagePublisher>();
             var target = serviceProvider
-               .GetRequiredService<IOutboundTopology>()
+               .GetRequiredService<ITopology>()
                .GetRequiredTarget<RabbitMqPublishMessage>();
 
             // A payload that is deliberately not the JSON the serializer would produce proving USF
@@ -479,7 +481,7 @@ public sealed class RabbitMqPublishingIntegrationTests
         {
             var services = new ServiceCollection();
             services.AddTestCloudEvents()
-               .AddRabbitMqOutboundTopology(
+               .AddRabbitMqTopology(
                     builder =>
                     {
                         builder.UseConnectionFactory(
@@ -538,7 +540,7 @@ public sealed class RabbitMqPublishingIntegrationTests
         {
             var services = new ServiceCollection();
             services.AddTestCloudEvents()
-               .AddRabbitMqOutboundTopology(
+               .AddRabbitMqTopology(
                     builder =>
                     {
                         builder.UseConnectionFactory(
@@ -618,7 +620,7 @@ public sealed class RabbitMqPublishingIntegrationTests
             var mappedPort = container.GetMappedPublicPort(5672);
             var services = new ServiceCollection();
             services.AddTestCloudEvents()
-               .AddRabbitMqOutboundTopology(
+               .AddRabbitMqTopology(
                     builder =>
                     {
                         builder.UseConnectionFactory(
@@ -656,7 +658,7 @@ public sealed class RabbitMqPublishingIntegrationTests
             }
 
             var publisher = serviceProvider.GetRequiredService<IMessagePublisher>();
-            var topology = serviceProvider.GetRequiredService<RabbitMqOutboundTopology>();
+            var topology = serviceProvider.GetRequiredService<RabbitMqTopology>();
             var connection = await topology.GetConnectionAsync(cancellationToken);
             var recovered = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
             var recoveryFailures = new ConcurrentQueue<Exception>();

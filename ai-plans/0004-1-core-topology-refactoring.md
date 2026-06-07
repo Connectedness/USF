@@ -8,23 +8,23 @@ Breaking changes are welcome here, we have not published the library yet.
 
 ## Acceptance Criteria
 
-- [ ] `Usf.Core` exposes a single topology abstraction and implementation that contain outbound targets and inbound endpoint definitions.
-- [ ] `OutboundTarget` and `InboundEndpoint` remain independent entry types with no shared entry interface or forced behavioral common base.
-- [ ] A topology can list all outbound targets and can resolve one outbound target by name or associated message type.
-- [ ] A topology can list inbound endpoint definitions and can resolve one endpoint by name for diagnostics, tests, and management use.
-- [ ] The public Core registry/catalog model is collapsed from separate inbound and outbound topology namespaces into one topology namespace keyed by `TopologyName`.
-- [ ] Publishing APIs resolve the default topology as the default publish topology; consuming-only topologies are started through topology runtime services and are not required to be resolved by normal publish call sites.
-- [ ] Direction-specific Core topology infrastructure is removed rather than retained as compatibility aliases, including inbound/outbound topology interfaces, registries, catalogs, single-topology registries, and provisioner aliases.
-- [ ] `IOutboundTargetRegistry` is removed; named outbound-target lookup lives directly on `ITopology`.
-- [ ] Direction-specific topology validation exceptions are collapsed into one topology validation exception.
-- [ ] Core exposes an `ITopologyRuntime` abstraction for topology instances that have active background work and need host-lifetime start/stop behavior.
-- [ ] A shared hosted service discovers registered `ITopologyRuntime` instances, starts them after topology provisioning, and stops them gracefully during host shutdown.
-- [ ] Core does not introduce a connection-provider abstraction; broker connection/client ownership and recovery remain transport-specific implementation details.
-- [ ] RabbitMQ registration supports one topology instance owning exactly one `RabbitMqConnectionProvider`; users can register separate RabbitMQ topology instances when they want separate publisher and consumer connections.
-- [ ] RabbitMQ exposes a unified topology builder surface that can configure shared broker resources, outbound publishing targets, inbound consumers, and direction-specific channel/runtime options.
-- [ ] Provisioning and runtime startup continue to run in deterministic hosted-service order: broker resources are provisioned before any topology runtime starts.
-- [ ] Existing outbound publishing behavior and existing inbound consumer behavior are preserved after the Core topology refactor.
-- [ ] Automated tests are updated or added for unified topology registration, duplicate topology-name rejection, default publish topology resolution, consuming-only topology startup, RabbitMQ separate publish/consume connections, and one topology containing both outbound targets and inbound endpoints.
+- [x] `Usf.Core` exposes a single topology abstraction and implementation that contain outbound targets and inbound endpoint definitions.
+- [x] `OutboundTarget` and `InboundEndpoint` remain independent entry types with no shared entry interface or forced behavioral common base.
+- [x] A topology can list all outbound targets and can resolve one outbound target by name or associated message type.
+- [x] A topology can list inbound endpoint definitions and can resolve one endpoint by name for diagnostics, tests, and management use.
+- [x] The public Core registry/catalog model is collapsed from separate inbound and outbound topology namespaces into one topology namespace keyed by `TopologyName`.
+- [x] Publishing APIs resolve the default topology as the default publish topology; consuming-only topologies are started through topology runtime services and are not required to be resolved by normal publish call sites.
+- [x] Direction-specific Core topology infrastructure is removed rather than retained as compatibility aliases, including inbound/outbound topology interfaces, registries, catalogs, single-topology registries, and provisioner aliases.
+- [x] `IOutboundTargetRegistry` is removed; named outbound-target lookup lives directly on `ITopology`.
+- [x] Direction-specific topology validation exceptions are collapsed into one topology validation exception.
+- [x] Core exposes an `ITopologyRuntime` abstraction for topology instances that have active background work and need host-lifetime start/stop behavior.
+- [x] A shared hosted service discovers registered `ITopologyRuntime` instances, starts them after topology provisioning, and stops them gracefully during host shutdown.
+- [x] Core does not introduce a connection-provider abstraction; broker connection/client ownership and recovery remain transport-specific implementation details.
+- [x] RabbitMQ registration supports one topology instance owning exactly one `RabbitMqConnectionProvider`; users can register separate RabbitMQ topology instances when they want separate publisher and consumer connections.
+- [x] RabbitMQ exposes a unified topology builder surface that can configure shared broker resources, outbound publishing targets, inbound consumers, and direction-specific channel/runtime options.
+- [x] Provisioning and runtime startup continue to run in deterministic hosted-service order: broker resources are provisioned before any topology runtime starts.
+- [x] Existing outbound publishing behavior and existing inbound consumer behavior are preserved after the Core topology refactor.
+- [x] Automated tests are updated or added for unified topology registration, duplicate topology-name rejection, default publish topology resolution, consuming-only topology startup, RabbitMQ separate publish/consume connections, and one topology containing both outbound targets and inbound endpoints.
 
 ## Technical Details
 

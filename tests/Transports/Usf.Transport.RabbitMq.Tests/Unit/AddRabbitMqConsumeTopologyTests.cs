@@ -12,15 +12,15 @@ using Xunit;
 
 namespace Usf.Transport.RabbitMq.Tests.Unit;
 
-public sealed class AddRabbitMqInboundTopologyTests
+public sealed class AddRabbitMqConsumeTopologyTests
 {
     [Fact]
-    public void AddRabbitMqInboundTopology_AllowsDefaultInboundAndOutboundTopologiesIndependently()
+    public void AddRabbitMqTopology_SupportsOneTopologyWithOutboundTargetsAndInboundEndpoints()
     {
         var services = new ServiceCollection();
         services.AddScoped<IMessageHandler<ValidationMessageA>, ValidationMessageAHandler>();
         services.AddTestCloudEvents()
-           .AddRabbitMqOutboundTopology(
+           .AddRabbitMqTopology(
                 builder =>
                 {
                     builder.UseConnectionFactory(static _ => new ConnectionFactory());
@@ -31,12 +31,6 @@ public sealed class AddRabbitMqInboundTopologyTests
                            .ToFanoutAddress("outbound-address")
                            .WithSerializer<CloudEventMessageSerializer>()
                     );
-                }
-            )
-           .AddRabbitMqInboundTopology(
-                builder =>
-                {
-                    builder.UseConnectionFactory(static _ => new ConnectionFactory());
                     builder.Queue("inbound");
                     builder.Consume(
                         "inbound",
@@ -46,29 +40,26 @@ public sealed class AddRabbitMqInboundTopologyTests
             );
         using var serviceProvider = services.BuildServiceProvider();
 
-        serviceProvider.GetRequiredService<IOutboundTopologyRegistry>()
+        serviceProvider.GetRequiredService<ITopologyRegistry>()
            .Names.Should().ContainSingle().Which.Should().Be(TopologyName.Default);
-        serviceProvider.GetRequiredService<IInboundTopologyRegistry>()
-           .Names.Should().ContainSingle().Which.Should().Be(TopologyName.Default);
-        serviceProvider.GetRequiredService<IOutboundTopology>()
-           .GetRequiredTarget<ValidationMessageA>()
+        var topology = serviceProvider.GetRequiredService<ITopology>();
+        topology.GetRequiredTarget<ValidationMessageA>()
            .TopologyName.Should().Be(TopologyName.Default);
-        serviceProvider.GetRequiredService<IInboundTopology>()
-           .Endpoints.Should().ContainSingle()
+        topology.InboundEndpoints.Should().ContainSingle()
            .Which.TopologyName.Should().Be(TopologyName.Default);
     }
 
     [Fact]
-    public void AddRabbitMqInboundTopology_RejectsDuplicateInboundTopologyNames()
+    public void AddRabbitMqTopology_RejectsDuplicateInboundTopologyNames()
     {
         var services = new ServiceCollection();
         var builder = services.AddUsf();
-        builder.AddRabbitMqInboundTopology("shared", static _ => { });
+        builder.AddRabbitMqTopology("shared", static _ => { });
 
-        var action = () => builder.AddRabbitMqInboundTopology("shared", static _ => { });
+        var action = () => builder.AddRabbitMqTopology("shared", static _ => { });
 
         action.Should().Throw<InvalidOperationException>()
-           .WithMessage("Inbound topology 'shared' is already registered. Registered inbound topologies: shared.");
+           .WithMessage("Topology 'shared' is already registered. Registered topologies: shared.");
     }
 
     [Fact]
@@ -80,7 +71,7 @@ public sealed class AddRabbitMqInboundTopologyTests
         services.AddScoped<IMessageHandler<ValidationMessageA>, ValidationMessageAHandler>();
         services.AddScoped<IMessageHandler<ValidationMessageB>, ValidationMessageBHandler>();
         services.AddTestCloudEvents()
-           .AddRabbitMqInboundTopology(
+           .AddRabbitMqTopology(
                 firstTopologyName,
                 builder =>
                 {
@@ -92,7 +83,7 @@ public sealed class AddRabbitMqInboundTopologyTests
                     );
                 }
             )
-           .AddRabbitMqInboundTopology(
+           .AddRabbitMqTopology(
                 secondTopologyName,
                 builder =>
                 {
@@ -106,20 +97,20 @@ public sealed class AddRabbitMqInboundTopologyTests
             );
         using var serviceProvider = services.BuildServiceProvider();
 
-        var registry = serviceProvider.GetRequiredService<IInboundTopologyRegistry>();
+        var registry = serviceProvider.GetRequiredService<ITopologyRegistry>();
 
         registry.Names.Should().BeEquivalentTo([firstTopologyName, secondTopologyName]);
         registry.GetRequiredTopology(firstTopologyName)
-           .Endpoints.Should().ContainSingle()
+           .InboundEndpoints.Should().ContainSingle()
            .Which.MessageType.Should().Be(typeof(ValidationMessageA));
         registry.GetRequiredTopology(secondTopologyName)
-           .Endpoints.Should().ContainSingle()
+           .InboundEndpoints.Should().ContainSingle()
            .Which.MessageType.Should().Be(typeof(ValidationMessageB));
     }
 
 
     [Fact]
-    public void AddRabbitMqInboundTopology_CompilesDispatchIndexForInboundAliases()
+    public void AddRabbitMqTopology_CompilesDispatchIndexForInboundAliases()
     {
         var services = new ServiceCollection();
         services.AddScoped<IMessageHandler<ValidationMessageA>, ValidationMessageAHandler>();
@@ -129,7 +120,7 @@ public sealed class AddRabbitMqInboundTopologyTests
            .MapMessageContracts(
                 contracts => contracts.Map<ValidationMessageA>("tests.current").WithInboundAlias("tests.legacy")
             )
-           .AddRabbitMqInboundTopology(
+           .AddRabbitMqTopology(
                 builder =>
                 {
                     builder.UseConnectionFactory(static _ => new ConnectionFactory());
@@ -142,7 +133,7 @@ public sealed class AddRabbitMqInboundTopologyTests
             );
         using var serviceProvider = services.BuildServiceProvider();
 
-        var topology = serviceProvider.GetRequiredService<RabbitMqInboundTopology>();
+        var topology = serviceProvider.GetRequiredService<RabbitMqTopology>();
 
         topology.TryDispatch("inbound", "tests.current", out var currentEndpoint).Should().BeTrue();
         topology.TryDispatch("inbound", "tests.legacy", out var legacyEndpoint).Should().BeTrue();
@@ -155,7 +146,7 @@ public sealed class AddRabbitMqInboundTopologyTests
     {
         var services = new ServiceCollection();
         services.AddTestCloudEvents()
-           .AddRabbitMqInboundTopology(
+           .AddRabbitMqTopology(
                 builder =>
                 {
                     builder.UseConnectionFactory(static _ => new ConnectionFactory());
@@ -168,9 +159,9 @@ public sealed class AddRabbitMqInboundTopologyTests
             );
         using var serviceProvider = services.BuildServiceProvider();
 
-        Action action = () => _ = serviceProvider.GetRequiredService<IInboundTopology>();
+        Action action = () => _ = serviceProvider.GetRequiredService<ITopology>();
 
-        var exception = action.Should().Throw<InboundTopologyValidationException>().Which;
+        var exception = action.Should().Throw<TopologyValidationException>().Which;
         exception.ValidationErrors.Should().Contain(
             "Inbound handler service 'Usf.Core.Messaging.IMessageHandler`1[Usf.Transport.RabbitMq.Tests.TestSupport.ValidationMessageA]' for message 'Usf.Transport.RabbitMq.Tests.TestSupport.ValidationMessageA' is not registered."
         );
@@ -182,7 +173,7 @@ public sealed class AddRabbitMqInboundTopologyTests
         var services = new ServiceCollection();
         services.AddScoped<IMessageHandler<ValidationMessageA>, ValidationMessageAHandler>();
         services.AddTestCloudEvents()
-           .AddRabbitMqInboundTopology(
+           .AddRabbitMqTopology(
                 builder =>
                 {
                     builder.UseConnectionFactory(
@@ -200,24 +191,24 @@ public sealed class AddRabbitMqInboundTopologyTests
                 }
             );
         await using var serviceProvider = services.BuildServiceProvider();
-        var topology = serviceProvider.GetRequiredService<RabbitMqInboundTopology>();
+        var topology = serviceProvider.GetRequiredService<RabbitMqTopology>();
 
         var action = async () => await topology.CreateChannelAsync(TestContext.Current.CancellationToken);
 
-        var exception = await action.Should().ThrowAsync<InboundTopologyValidationException>();
+        var exception = await action.Should().ThrowAsync<TopologyValidationException>();
         exception.Which.ValidationErrors.Should().ContainSingle().Which.Should().Be(
             "RabbitMQ topology recovery must be enabled for inbound topologies so RabbitMQ.Client can recover consumer subscriptions. Configure ConnectionFactory.TopologyRecoveryEnabled to true."
         );
     }
 
     [Fact]
-    public void AddRabbitMqInboundTopology_AppliesCustomInspectorAndChannelGroupKnobs()
+    public void AddRabbitMqTopology_AppliesCustomInspectorAndChannelGroupKnobs()
     {
         var services = new ServiceCollection();
         services.AddScoped<IMessageHandler<ValidationMessageA>, ValidationMessageAHandler>();
         services.AddSingleton<RawInspector>();
         services.AddTestCloudEvents()
-           .AddRabbitMqInboundTopology(
+           .AddRabbitMqTopology(
                 builder =>
                 {
                     builder.UseConnectionFactory(static _ => new ConnectionFactory());
@@ -239,7 +230,7 @@ public sealed class AddRabbitMqInboundTopologyTests
             );
         using var serviceProvider = services.BuildServiceProvider();
 
-        var endpoint = serviceProvider.GetRequiredService<RabbitMqInboundTopology>()
+        var endpoint = serviceProvider.GetRequiredService<RabbitMqTopology>()
            .Endpoints.Should().ContainSingle().Which;
 
         endpoint.InspectorType.Should().Be(typeof(RawInspector));
@@ -247,6 +238,94 @@ public sealed class AddRabbitMqInboundTopologyTests
         endpoint.ChannelGroup.MaximumChannelCount.Should().Be(3);
         endpoint.ChannelGroup.PrefetchCount.Should().Be(7);
         endpoint.ChannelGroup.ConsumerDispatchConcurrency.Should().Be(2);
+    }
+
+    [Fact]
+    public void SeparatePublishAndConsumeTopologies_OwnDistinctConnectionsAndRegisterRuntimeOnlyForConsumer()
+    {
+        TopologyName consumerTopologyName = new ("rabbitmq-consumers");
+        var services = new ServiceCollection();
+        services.AddScoped<IMessageHandler<ValidationMessageA>, ValidationMessageAHandler>();
+        services.AddTestCloudEvents()
+           .AddRabbitMqTopology(
+                builder =>
+                {
+                    builder.UseConnectionFactory(static _ => new ConnectionFactory());
+                    builder.Exchange("orders", ExchangeType.Fanout);
+                    builder.Address("orders-address", "orders");
+                    builder.Publish<ValidationMessageA>(
+                        target => target
+                           .ToFanoutAddress("orders-address")
+                           .WithSerializer<CloudEventMessageSerializer>()
+                    );
+                }
+            )
+           .AddRabbitMqTopology(
+                consumerTopologyName,
+                builder =>
+                {
+                    builder.UseConnectionFactory(static _ => new ConnectionFactory());
+                    builder.Queue("inbound");
+                    builder.Consume(
+                        "inbound",
+                        endpoint => endpoint.Handle<ValidationMessageA, ValidationMessageAHandler>()
+                    );
+                }
+            );
+        using var serviceProvider = services.BuildServiceProvider();
+
+        var registry = serviceProvider.GetRequiredService<ITopologyRegistry>();
+        registry.Names.Should().BeEquivalentTo([TopologyName.Default, consumerTopologyName]);
+
+        // The default topology is the publish topology and has the outbound target.
+        registry.GetRequiredTopology(TopologyName.Default)
+           .GetRequiredTarget<ValidationMessageA>()
+           .TopologyName.Should().Be(TopologyName.Default);
+
+        // The consuming-only topology is reachable through the registry but exposes no outbound targets.
+        var consumerTopology = registry.GetRequiredTopology(consumerTopologyName);
+        consumerTopology.OutboundTargets.Should().BeEmpty();
+        consumerTopology.InboundEndpoints.Should().ContainSingle()
+           .Which.TopologyName.Should().Be(consumerTopologyName);
+
+        // Each topology owns exactly one connection provider, so they are distinct instances.
+        var publishTopology = serviceProvider.GetRequiredKeyedService<RabbitMqTopology>(TopologyName.Default);
+        var consumeTopology = serviceProvider.GetRequiredKeyedService<RabbitMqTopology>(consumerTopologyName);
+        publishTopology.Should().NotBeSameAs(consumeTopology);
+
+        // A topology runtime is registered only for the consuming topology.
+        var runtimes = serviceProvider.GetServices<ITopologyRuntime>();
+        runtimes.Should().ContainSingle().Which.TopologyName.Should().Be(consumerTopologyName);
+    }
+
+    [Fact]
+    public void PublishingThroughConsumingOnlyTopology_FailsWithOutboundTargetNotFound()
+    {
+        TopologyName consumerTopologyName = new ("rabbitmq-consumers");
+        var services = new ServiceCollection();
+        services.AddScoped<IMessageHandler<ValidationMessageA>, ValidationMessageAHandler>();
+        services.AddTestCloudEvents()
+           .AddRabbitMqTopology(
+                consumerTopologyName,
+                builder =>
+                {
+                    builder.UseConnectionFactory(static _ => new ConnectionFactory());
+                    builder.Queue("inbound");
+                    builder.Consume(
+                        "inbound",
+                        endpoint => endpoint.Handle<ValidationMessageA, ValidationMessageAHandler>()
+                    );
+                }
+            );
+        using var serviceProvider = services.BuildServiceProvider();
+
+        var topology = serviceProvider
+           .GetRequiredService<ITopologyRegistry>()
+           .GetRequiredTopology(consumerTopologyName);
+
+        Action action = () => _ = topology.GetRequiredTarget<ValidationMessageA>();
+
+        action.Should().Throw<OutboundTargetNotFoundException>();
     }
 
     private sealed class ValidationMessageAHandler : IMessageHandler<ValidationMessageA>

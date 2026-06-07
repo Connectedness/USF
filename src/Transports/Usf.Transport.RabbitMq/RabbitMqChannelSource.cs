@@ -11,24 +11,14 @@ public sealed class RabbitMqChannelSource : IDisposable
 {
     private readonly SemaphoreSlim _channelBudgetValidationGate = new (1, 1);
     private readonly RabbitMqConnectionProvider _connectionProvider;
-    private readonly Func<IReadOnlyList<string>, Exception> _createValidationException;
-    private readonly string _topologyDirection;
     private int _channelBudgetConfigured;
     private int _channelBudgetValidated;
     private int _worstCaseChannelCount;
     private string _worstCaseChannelCountDescription = string.Empty;
 
-    public RabbitMqChannelSource(
-        RabbitMqConnectionProvider connectionProvider,
-        string topologyDirection = "outbound",
-        Func<IReadOnlyList<string>, Exception>? createValidationException = null
-    )
+    public RabbitMqChannelSource(RabbitMqConnectionProvider connectionProvider)
     {
         _connectionProvider = connectionProvider ?? throw new ArgumentNullException(nameof(connectionProvider));
-        _topologyDirection = RequireText(topologyDirection, nameof(topologyDirection));
-        _createValidationException = createValidationException ??
-                                     (static validationErrors =>
-                                         new OutboundTopologyValidationException(validationErrors));
     }
 
     public void Dispose()
@@ -113,21 +103,11 @@ public sealed class RabbitMqChannelSource : IDisposable
             return;
         }
 
-        throw _createValidationException(
+        throw new TopologyValidationException(
             new List<string>
             {
-                $"RabbitMQ {_topologyDirection} topology may open up to {_worstCaseChannelCount} channels ({_worstCaseChannelCountDescription}), but the broker negotiated channel_max={connection.ChannelMax}."
+                $"RabbitMQ topology may open up to {_worstCaseChannelCount} channels ({_worstCaseChannelCountDescription}), but the broker negotiated channel_max={connection.ChannelMax}."
             }
         );
-    }
-
-    private static string RequireText(string value, string parameterName)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            throw new ArgumentException("The value cannot be null or whitespace.", parameterName);
-        }
-
-        return value;
     }
 }

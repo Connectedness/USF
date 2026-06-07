@@ -9,7 +9,7 @@ namespace Usf.Core.Messaging;
 /// together with the transport's own validation errors and fails fast at compile time, aggregated into a single
 /// exception.
 /// </summary>
-public static class MessageContractOutboundTopologyValidator
+public static class OutboundTargetContractValidator
 {
     /// <summary>
     /// Adds a validation error for every typed outbound target whose message type has no canonical CloudEvents

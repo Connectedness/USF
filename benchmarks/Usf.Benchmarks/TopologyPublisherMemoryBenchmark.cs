@@ -25,9 +25,11 @@ public class TopologyPublisherMemoryBenchmark
         var registry = contracts.Build();
         _target = new BenchmarkTarget(registry, NamedTopology);
         _publisher = new MessagePublisher(
-            new OutboundTopology(
+            new Topology(
+                TopologyName.Default,
                 new Dictionary<Type, OutboundTarget>(),
-                new Dictionary<string, OutboundTarget>(StringComparer.Ordinal)
+                new Dictionary<string, OutboundTarget>(StringComparer.Ordinal),
+                new Dictionary<string, InboundEndpoint>(StringComparer.Ordinal)
             )
         );
         _message = new BenchmarkMessage("value");

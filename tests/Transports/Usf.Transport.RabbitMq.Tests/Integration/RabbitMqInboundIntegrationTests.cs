@@ -31,7 +31,7 @@ public sealed class RabbitMqInboundIntegrationTests
             services.AddScoped<IMessageHandler<RabbitMqPublishMessage>, RecordingPublishMessageHandler>();
             services
                .AddTestCloudEvents()
-               .AddRabbitMqOutboundTopology(
+               .AddRabbitMqTopology(
                     builder =>
                     {
                         builder.UseConnectionFactory(
@@ -49,20 +49,6 @@ public sealed class RabbitMqInboundIntegrationTests
                                .ToDirectAddress("inbound-events-address", "published")
                                .WithSerializer<CloudEventMessageSerializer>()
                         );
-                    }
-                )
-               .AddRabbitMqInboundTopology(
-                    builder =>
-                    {
-                        builder.UseConnectionFactory(
-                            _ => new ConnectionFactory
-                            {
-                                Uri = new Uri(container.GetConnectionString())
-                            }
-                        );
-                        builder.Exchange("inbound-events", ExchangeType.Direct);
-                        builder.Queue("inbound-events-queue");
-                        builder.QueueBinding("inbound-events", "inbound-events-queue", "published");
                         builder.Consume(
                             "inbound-events-queue",
                             endpoint => endpoint

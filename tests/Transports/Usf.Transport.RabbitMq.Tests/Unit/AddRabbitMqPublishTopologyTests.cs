@@ -12,7 +12,7 @@ using Xunit;
 
 namespace Usf.Transport.RabbitMq.Tests.Unit;
 
-public sealed class AddRabbitMqOutboundTopologyTests
+public sealed class AddRabbitMqPublishTopologyTests
 {
     [Fact]
     public void AddUsf_WiresRegistryPayloadCodecAndSerializer()
@@ -52,7 +52,7 @@ public sealed class AddRabbitMqOutboundTopologyTests
         services
            .AddUsf()
            .UseCloudEvents(options => options.Source = "/tests")
-           .AddRabbitMqOutboundTopology(
+           .AddRabbitMqTopology(
                 builder =>
                 {
                     builder.UseConnectionFactory(static _ => new ConnectionFactory());
@@ -68,9 +68,9 @@ public sealed class AddRabbitMqOutboundTopologyTests
         using var serviceProvider = services.BuildServiceProvider();
 
         // ReSharper disable once AccessToDisposedClosure -- act is called before disposal
-        Action action = () => _ = serviceProvider.GetRequiredService<IOutboundTopology>();
+        Action action = () => _ = serviceProvider.GetRequiredService<ITopology>();
 
-        var exception = action.Should().Throw<OutboundTopologyValidationException>().Which;
+        var exception = action.Should().Throw<TopologyValidationException>().Which;
         exception.ValidationErrors.Should().ContainSingle().Which.Should().Be(
             "Outbound target 'Usf.Transport.RabbitMq.Tests.TestSupport.ValidationMessageA' publishes unregistered CloudEvents message type 'Usf.Transport.RabbitMq.Tests.TestSupport.ValidationMessageA'. Register its canonical discriminator with MessageContractRegistryBuilder.Map<T>(...) or MapOutbound<T>(...)."
         );
@@ -83,7 +83,7 @@ public sealed class AddRabbitMqOutboundTopologyTests
         services
            .AddUsf()
            .UseCloudEvents(options => options.Source = "/tests")
-           .AddRabbitMqOutboundTopology(
+           .AddRabbitMqTopology(
                 builder =>
                 {
                     builder.UseConnectionFactory(static _ => new ConnectionFactory());
@@ -98,9 +98,9 @@ public sealed class AddRabbitMqOutboundTopologyTests
         using var serviceProvider = services.BuildServiceProvider();
 
         // ReSharper disable once AccessToDisposedClosure -- act is called before disposal
-        Action action = () => _ = serviceProvider.GetRequiredService<IOutboundTopology>();
+        Action action = () => _ = serviceProvider.GetRequiredService<ITopology>();
 
-        var exception = action.Should().Throw<OutboundTopologyValidationException>().Which;
+        var exception = action.Should().Throw<TopologyValidationException>().Which;
         exception.ValidationErrors.Should().Contain(
             "Outbound target for message 'Usf.Transport.RabbitMq.Tests.TestSupport.ValidationMessageA' references unknown address 'missing-address'."
         );
@@ -110,10 +110,10 @@ public sealed class AddRabbitMqOutboundTopologyTests
     }
 
     [Fact]
-    public void AddRabbitMqOutboundTopology_ReportsDeterministicValidationErrors()
+    public void AddRabbitMqTopology_ReportsDeterministicValidationErrors()
     {
         var services = new ServiceCollection();
-        services.AddUsf().AddRabbitMqOutboundTopology(
+        services.AddUsf().AddRabbitMqTopology(
             builder =>
             {
                 builder.Exchange("exchange-a", ExchangeType.Direct);
@@ -147,9 +147,9 @@ public sealed class AddRabbitMqOutboundTopologyTests
         using var serviceProvider = services.BuildServiceProvider();
 
         // ReSharper disable once AccessToDisposedClosure -- act is called before disposal
-        Action action = () => _ = serviceProvider.GetRequiredService<IOutboundTopology>();
+        Action action = () => _ = serviceProvider.GetRequiredService<ITopology>();
 
-        var exception = action.Should().Throw<OutboundTopologyValidationException>().Which;
+        var exception = action.Should().Throw<TopologyValidationException>().Which;
         exception.ValidationErrors.Should().Equal(
             "A RabbitMQ connection factory must be configured.",
             "Address 'missing-address-exchange' references unknown exchange 'missing-address-exchange'.",
@@ -181,24 +181,24 @@ public sealed class AddRabbitMqOutboundTopologyTests
     }
 
     [Fact]
-    public void AddRabbitMqOutboundTopology_RejectsDuplicateTopologyNames()
+    public void AddRabbitMqTopology_RejectsDuplicateTopologyNames()
     {
         var services = new ServiceCollection();
         var builder = services.AddUsf();
-        builder.AddRabbitMqOutboundTopology("shared", static _ => { });
+        builder.AddRabbitMqTopology("shared", static _ => { });
 
-        var action = () => builder.AddRabbitMqOutboundTopology("shared", static _ => { });
+        var action = () => builder.AddRabbitMqTopology("shared", static _ => { });
 
         action.Should().Throw<InvalidOperationException>()
-           .WithMessage("Outbound topology 'shared' is already registered. Registered outbound topologies: shared.");
+           .WithMessage("Topology 'shared' is already registered. Registered topologies: shared.");
     }
 
     [Fact]
-    public void AddRabbitMqOutboundTopology_CompilesDistinctTargetTypesForRabbitMqRoutes()
+    public void AddRabbitMqTopology_CompilesDistinctTargetTypesForRabbitMqRoutes()
     {
         var services = new ServiceCollection();
         services.AddTestCloudEvents()
-           .AddRabbitMqOutboundTopology(
+           .AddRabbitMqTopology(
                 builder =>
                 {
                     builder.UseConnectionFactory(static _ => new ConnectionFactory());
@@ -238,8 +238,8 @@ public sealed class AddRabbitMqOutboundTopologyTests
             );
         using var serviceProvider = services.BuildServiceProvider();
 
-        var outboundTopology = serviceProvider.GetRequiredService<IOutboundTopology>();
-        var targetRegistry = serviceProvider.GetRequiredService<IOutboundTargetRegistry>();
+        var outboundTopology = serviceProvider.GetRequiredService<ITopology>();
+        var targetRegistry = serviceProvider.GetRequiredService<ITopology>();
 
         outboundTopology
            .GetRequiredTarget<ValidationMessageA>().GetType()
@@ -261,7 +261,7 @@ public sealed class AddRabbitMqOutboundTopologyTests
         TopologyName topologyName = new ("named");
         var services = new ServiceCollection();
         services.AddTestCloudEvents()
-           .AddRabbitMqOutboundTopology(
+           .AddRabbitMqTopology(
                 topologyName,
                 builder =>
                 {
@@ -278,7 +278,7 @@ public sealed class AddRabbitMqOutboundTopologyTests
         using var serviceProvider = services.BuildServiceProvider();
 
         var topology = serviceProvider
-           .GetRequiredService<IOutboundTopologyRegistry>()
+           .GetRequiredService<ITopologyRegistry>()
            .GetRequiredTopology(topologyName);
 
         topology.GetRequiredTarget<ValidationMessageA>().TopologyName.Should().Be(topologyName);
@@ -289,7 +289,7 @@ public sealed class AddRabbitMqOutboundTopologyTests
     {
         var services = new ServiceCollection();
         services.AddTestCloudEvents()
-           .AddRabbitMqOutboundTopology(
+           .AddRabbitMqTopology(
                 builder =>
                 {
                     builder.MapMessageContracts(
@@ -307,9 +307,9 @@ public sealed class AddRabbitMqOutboundTopologyTests
             );
         using var serviceProvider = services.BuildServiceProvider();
 
-        Action action = () => _ = serviceProvider.GetRequiredService<IOutboundTopology>();
+        Action action = () => _ = serviceProvider.GetRequiredService<ITopology>();
 
-        var exception = action.Should().Throw<OutboundTopologyValidationException>().Which;
+        var exception = action.Should().Throw<TopologyValidationException>().Which;
         exception.ValidationErrors.Should().ContainSingle().Which.Should().Be(
             "RabbitMQ outbound message-contract dialect maps message type 'Usf.Transport.RabbitMq.Tests.TestSupport.ValidationMessageB', but no outbound target publishes that type on this topology."
         );
@@ -323,7 +323,7 @@ public sealed class AddRabbitMqOutboundTopologyTests
            .AddUsf()
            .UseCloudEvents(options => options.Source = "/tests/rabbitmq")
            .MapMessageContracts(contracts => contracts.Map<ValidationMessageA>("tests.validation-a"))
-           .AddRabbitMqOutboundTopology(
+           .AddRabbitMqTopology(
                 builder =>
                 {
                     builder.MapMessageContracts(
@@ -342,18 +342,18 @@ public sealed class AddRabbitMqOutboundTopologyTests
         using var serviceProvider = services.BuildServiceProvider();
 
         var target = serviceProvider
-           .GetRequiredService<IOutboundTopology>()
+           .GetRequiredService<ITopology>()
            .GetRequiredTarget<ValidationMessageB>();
 
         target.GetRequiredDiscriminator(typeof(ValidationMessageB)).Should().Be("tests.dialect-only");
     }
 
     [Fact]
-    public void AddRabbitMqOutboundTopology_RejectsMandatoryTargetsUsingFireAndForgetPublishing()
+    public void AddRabbitMqTopology_RejectsMandatoryTargetsUsingFireAndForgetPublishing()
     {
         var services = new ServiceCollection();
         services.AddTestCloudEvents()
-           .AddRabbitMqOutboundTopology(
+           .AddRabbitMqTopology(
                 builder =>
                 {
                     builder.UseConnectionFactory(static _ => new ConnectionFactory());
@@ -380,9 +380,9 @@ public sealed class AddRabbitMqOutboundTopologyTests
         using var serviceProvider = services.BuildServiceProvider();
 
         // ReSharper disable once AccessToDisposedClosure -- act is called before disposal
-        Action action = () => _ = serviceProvider.GetRequiredService<IOutboundTopology>();
+        Action action = () => _ = serviceProvider.GetRequiredService<ITopology>();
 
-        var exception = action.Should().Throw<OutboundTopologyValidationException>().Which;
+        var exception = action.Should().Throw<TopologyValidationException>().Which;
         exception.ValidationErrors.Should().BeEquivalentTo(
             "Outbound target for message 'Usf.Transport.RabbitMq.Tests.TestSupport.ValidationMessageA' enables mandatory routing but its effective channel group uses fire-and-forget publishing.",
             "Outbound target for message 'Usf.Transport.RabbitMq.Tests.TestSupport.ValidationMessageA' and target 'shared-best-effort' enables mandatory routing but its effective channel group uses fire-and-forget publishing."

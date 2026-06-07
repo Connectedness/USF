@@ -5,9 +5,13 @@ using Usf.Core.Messaging.Errors;
 
 namespace Usf.Core.Tests.Messaging.TestSupport;
 
-public sealed class EmptyOutboundTopology : IOutboundTopology
+public sealed class EmptyOutboundTopology : ITopology
 {
-    public IReadOnlyCollection<OutboundTarget> Targets => [];
+    public TopologyName TopologyName => TopologyName.Default;
+
+    public IReadOnlyCollection<OutboundTarget> OutboundTargets => [];
+
+    public IReadOnlyCollection<InboundEndpoint> InboundEndpoints => [];
 
     public OutboundTarget GetRequiredTarget(Type messageType)
     {
@@ -38,6 +42,17 @@ public sealed class EmptyOutboundTopology : IOutboundTopology
     public bool TryGetTarget(string name, out OutboundTarget? target)
     {
         target = null;
+        return false;
+    }
+
+    public InboundEndpoint GetRequiredEndpoint(string name)
+    {
+        throw new InboundEndpointNotFoundException(name);
+    }
+
+    public bool TryGetEndpoint(string name, out InboundEndpoint? endpoint)
+    {
+        endpoint = null;
         return false;
     }
 }

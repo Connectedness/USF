@@ -23,23 +23,23 @@ namespace Usf.Transport.RabbitMq.Tests.Unit;
 public sealed class RabbitMqChannelGroupTests
 {
     [Fact]
-    public void RabbitMqOutboundTopologyBuilder_UsesImplicitPrivateChannelGroupsByDefault()
+    public void RabbitMqTopologyBuilder_UsesImplicitPrivateChannelGroupsByDefault()
     {
-        var builder = new RabbitMqOutboundTopologyBuilder();
+        var builder = new RabbitMqTopologyBuilder();
 
         builder.UseConnectionFactory(static _ => new ConnectionFactory());
 
         var configuration = builder.Build();
 
-        configuration.ChannelGroups.Should().BeEmpty();
+        configuration.OutboundChannelGroups.Should().BeEmpty();
         configuration.DefaultPublisherConfirmMode.Should().Be(RabbitMqPublisherConfirmMode.Confirms);
         configuration.DefaultPublisherConfirmTimeout.Should().Be(TimeSpan.FromSeconds(30));
     }
 
     [Fact]
-    public void RabbitMqOutboundTopologyBuilder_AllowsPublisherConfirmDefaultsAndChannelGroupModeToBeOverridden()
+    public void RabbitMqTopologyBuilder_AllowsPublisherConfirmDefaultsAndChannelGroupModeToBeOverridden()
     {
-        var builder = new RabbitMqOutboundTopologyBuilder();
+        var builder = new RabbitMqTopologyBuilder();
 
         builder
            .WithDefaultPublisherConfirmMode(RabbitMqPublisherConfirmMode.FireAndForget)
@@ -50,7 +50,7 @@ public sealed class RabbitMqChannelGroupTests
 
         configuration.DefaultPublisherConfirmMode.Should().Be(RabbitMqPublisherConfirmMode.FireAndForget);
         configuration.DefaultPublisherConfirmTimeout.Should().Be(TimeSpan.FromSeconds(7));
-        configuration.ChannelGroups.Should().ContainSingle()
+        configuration.OutboundChannelGroups.Should().ContainSingle()
            .Which.Should().Be(
                 new RabbitMqChannelGroupDefinition(
                     "confirmed",
@@ -62,11 +62,11 @@ public sealed class RabbitMqChannelGroupTests
     }
 
     [Fact]
-    public void RabbitMqOutboundTopologyCompiler_AppliesTopologyPublisherConfirmDefaultToExplicitChannelGroups()
+    public void RabbitMqTopologyCompiler_AppliesTopologyPublisherConfirmDefaultToExplicitChannelGroups()
     {
         var services = new ServiceCollection();
         services.AddTestCloudEvents()
-           .AddRabbitMqOutboundTopology(
+           .AddRabbitMqTopology(
                 builder =>
                 {
                     builder.UseConnectionFactory(static _ => new ConnectionFactory());
@@ -84,16 +84,16 @@ public sealed class RabbitMqChannelGroupTests
             );
         using var serviceProvider = services.BuildServiceProvider();
 
-        var topology = serviceProvider.GetRequiredService<RabbitMqOutboundTopology>();
+        var topology = serviceProvider.GetRequiredService<RabbitMqTopology>();
 
-        topology.ChannelGroups.Should().ContainSingle()
+        topology.OutboundChannelGroups.Should().ContainSingle()
            .Which.PublisherConfirmMode.Should().Be(RabbitMqPublisherConfirmMode.FireAndForget);
     }
 
     [Fact]
-    public void RabbitMqOutboundTopologyBuilder_RejectsReservedImplicitChannelGroupNamePrefix()
+    public void RabbitMqTopologyBuilder_RejectsReservedImplicitChannelGroupNamePrefix()
     {
-        var builder = new RabbitMqOutboundTopologyBuilder();
+        var builder = new RabbitMqTopologyBuilder();
 
         var action = () => builder.ChannelGroup("$implicit:user-defined", 1);
 
@@ -480,9 +480,11 @@ public sealed class RabbitMqChannelGroupTests
             true
         );
         var publisher = new MessagePublisher(
-            new OutboundTopology(
+            new Topology(
+                TopologyName.Default,
                 new Dictionary<Type, OutboundTarget>(),
-                new Dictionary<string, OutboundTarget>(StringComparer.Ordinal)
+                new Dictionary<string, OutboundTarget>(StringComparer.Ordinal),
+                new Dictionary<string, InboundEndpoint>(StringComparer.Ordinal)
             )
         );
         SerializedMessage message = new (
@@ -579,9 +581,11 @@ public sealed class RabbitMqChannelGroupTests
             }
         );
         var publisher = new MessagePublisher(
-            new OutboundTopology(
+            new Topology(
+                TopologyName.Default,
                 new Dictionary<Type, OutboundTarget>(),
-                new Dictionary<string, OutboundTarget>(StringComparer.Ordinal)
+                new Dictionary<string, OutboundTarget>(StringComparer.Ordinal),
+                new Dictionary<string, InboundEndpoint>(StringComparer.Ordinal)
             )
         );
         Activity? producerActivity = null;
@@ -641,9 +645,11 @@ public sealed class RabbitMqChannelGroupTests
             false
         );
         var publisher = new MessagePublisher(
-            new OutboundTopology(
+            new Topology(
+                TopologyName.Default,
                 new Dictionary<Type, OutboundTarget>(),
-                new Dictionary<string, OutboundTarget>(StringComparer.Ordinal)
+                new Dictionary<string, OutboundTarget>(StringComparer.Ordinal),
+                new Dictionary<string, InboundEndpoint>(StringComparer.Ordinal)
             )
         );
         SerializedMessage message = new (
@@ -789,11 +795,11 @@ public sealed class RabbitMqChannelGroupTests
     }
 
     [Fact]
-    public async Task RabbitMqOutboundTopology_RejectsFactoryWithAutomaticRecoveryDisabledWhenConnectionIsFirstCreated()
+    public async Task RabbitMqTopology_RejectsFactoryWithAutomaticRecoveryDisabledWhenConnectionIsFirstCreated()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var createFactoryCallCount = 0;
-        var builder = new RabbitMqOutboundTopologyBuilder();
+        var builder = new RabbitMqTopologyBuilder();
         builder.UseConnectionFactory(
             _ =>
             {
@@ -807,10 +813,10 @@ public sealed class RabbitMqChannelGroupTests
         var services = new ServiceCollection();
         services
            .AddUsf()
-           .AddRabbitMqOutboundTopology(
+           .AddRabbitMqTopology(
                 _ =>
                 {
-                    foreach (var channelGroup in builder.Build().ChannelGroups)
+                    foreach (var channelGroup in builder.Build().OutboundChannelGroups)
                     {
                         _.ChannelGroup(
                             channelGroup.Name,
@@ -833,13 +839,13 @@ public sealed class RabbitMqChannelGroupTests
                 }
             );
         using var serviceProvider = services.BuildServiceProvider();
-        await using var topology = serviceProvider.GetRequiredService<RabbitMqOutboundTopology>();
+        await using var topology = serviceProvider.GetRequiredService<RabbitMqTopology>();
 
         createFactoryCallCount.Should().Be(0);
 
         var action = async () => await topology.GetConnectionAsync(cancellationToken);
 
-        var exception = (await action.Should().ThrowAsync<OutboundTopologyValidationException>()).Which;
+        var exception = (await action.Should().ThrowAsync<TopologyValidationException>()).Which;
         exception.ValidationErrors.Should().ContainSingle()
            .Which.Should()
            .Be(
@@ -947,7 +953,7 @@ public sealed class RabbitMqChannelGroupTests
     }
 
     [Fact]
-    public async Task RabbitMqOutboundTopology_ThrowsWhenWorstCaseChannelCountExceedsBrokerLimit()
+    public async Task RabbitMqTopology_ThrowsWhenWorstCaseChannelCountExceedsBrokerLimit()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var connection = new TestRabbitMqConnection
@@ -964,19 +970,19 @@ public sealed class RabbitMqChannelGroupTests
         // ReSharper disable once AccessToDisposedClosure -- act is called before disposal
         Func<Task> act = async () => await topology.GetConnectionAsync(cancellationToken);
 
-        var exception = (await act.Should().ThrowAsync<OutboundTopologyValidationException>()).Which;
+        var exception = (await act.Should().ThrowAsync<TopologyValidationException>()).Which;
         exception.ValidationErrors.Should().HaveCount(1);
         exception
            .ValidationErrors[0]
            .Should()
            .Be(
-                "RabbitMQ outbound topology may open up to 4 channels (2 channel groups), but the broker negotiated channel_max=3."
+                "RabbitMQ topology may open up to 4 channels (2 channel groups), but the broker negotiated channel_max=3."
             );
         connection.DisposeAsyncCallCount.Should().Be(0);
     }
 
     [Fact]
-    public async Task RabbitMqOutboundTopology_SkipsChannelLimitCheckWhenBrokerAdvertisesUnlimitedChannels()
+    public async Task RabbitMqTopology_SkipsChannelLimitCheckWhenBrokerAdvertisesUnlimitedChannels()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var connection = new TestRabbitMqConnection
@@ -997,7 +1003,7 @@ public sealed class RabbitMqChannelGroupTests
     }
 
     [Fact]
-    public async Task RabbitMqOutboundTopology_ForwardsConfiguredChannelOptions()
+    public async Task RabbitMqTopology_ForwardsConfiguredChannelOptions()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var trackedChannel = new TestRabbitMqChannel();
@@ -1025,65 +1031,75 @@ public sealed class RabbitMqChannelGroupTests
     }
 
     [Fact]
-    public void RabbitMqOutboundTopologyCompiler_RejectsInvalidChannelGroupSizes()
+    public void RabbitMqTopologyCompiler_RejectsInvalidChannelGroupSizes()
     {
         var services = new ServiceCollection();
         services.AddSingleton(
-            new RabbitMqOutboundTopologyConfiguration(
+            new RabbitMqTopologyConfiguration(
                 static _ => new ConnectionFactory(),
                 Array.Empty<RabbitMqExchangeDefinition>(),
                 Array.Empty<RabbitMqQueueDefinition>(),
                 Array.Empty<RabbitMqBindingDefinition>(),
                 Array.Empty<RabbitMqAddressDefinition>(),
                 [new RabbitMqChannelGroupDefinition("invalid", 0)],
-                Array.Empty<RabbitMqOutboundTargetDefinition>()
+                Array.Empty<RabbitMqOutboundTargetDefinition>(),
+                Array.Empty<RabbitMqInboundChannelGroupDefinition>(),
+                Array.Empty<RabbitMqInboundHandlerDefinition>(),
+                typeof(MessageDeserializationMiddleware),
+                null,
+                TimeSpan.FromSeconds(30)
             )
         );
         var configuration = services.Single(
-            static descriptor => descriptor.ServiceType == typeof(RabbitMqOutboundTopologyConfiguration)
+            static descriptor => descriptor.ServiceType == typeof(RabbitMqTopologyConfiguration)
         );
 
-        Action act = () => _ = Compile((RabbitMqOutboundTopologyConfiguration) configuration.ImplementationInstance!);
+        Action act = () => _ = Compile((RabbitMqTopologyConfiguration) configuration.ImplementationInstance!);
 
-        var exception = act.Should().Throw<OutboundTopologyValidationException>().Which;
+        var exception = act.Should().Throw<TopologyValidationException>().Which;
         exception.ValidationErrors.Should().Contain(
             "Channel group 'invalid' maximum channel count must be greater than zero."
         );
     }
 
     [Fact]
-    public void RabbitMqOutboundTopologyCompiler_RejectsReservedImplicitChannelGroupNamePrefix()
+    public void RabbitMqTopologyCompiler_RejectsReservedImplicitChannelGroupNamePrefix()
     {
         var services = new ServiceCollection();
         services.AddSingleton(
-            new RabbitMqOutboundTopologyConfiguration(
+            new RabbitMqTopologyConfiguration(
                 static _ => new ConnectionFactory(),
                 Array.Empty<RabbitMqExchangeDefinition>(),
                 Array.Empty<RabbitMqQueueDefinition>(),
                 Array.Empty<RabbitMqBindingDefinition>(),
                 Array.Empty<RabbitMqAddressDefinition>(),
                 [new RabbitMqChannelGroupDefinition("$implicit:user-defined", 1)],
-                Array.Empty<RabbitMqOutboundTargetDefinition>()
+                Array.Empty<RabbitMqOutboundTargetDefinition>(),
+                Array.Empty<RabbitMqInboundChannelGroupDefinition>(),
+                Array.Empty<RabbitMqInboundHandlerDefinition>(),
+                typeof(MessageDeserializationMiddleware),
+                null,
+                TimeSpan.FromSeconds(30)
             )
         );
         var configuration = services.Single(
-            static descriptor => descriptor.ServiceType == typeof(RabbitMqOutboundTopologyConfiguration)
+            static descriptor => descriptor.ServiceType == typeof(RabbitMqTopologyConfiguration)
         );
 
-        Action act = () => _ = Compile((RabbitMqOutboundTopologyConfiguration) configuration.ImplementationInstance!);
+        Action act = () => _ = Compile((RabbitMqTopologyConfiguration) configuration.ImplementationInstance!);
 
-        var exception = act.Should().Throw<OutboundTopologyValidationException>().Which;
+        var exception = act.Should().Throw<TopologyValidationException>().Which;
         exception.ValidationErrors.Should().Contain(
             "Channel group '$implicit:user-defined' uses reserved name prefix '$implicit:'."
         );
     }
 
     [Fact]
-    public void RabbitMqOutboundTopologyCompiler_RejectsChannelGroupsThatNoTargetReferences()
+    public void RabbitMqTopologyCompiler_RejectsChannelGroupsThatNoTargetReferences()
     {
         var services = new ServiceCollection();
         services.AddTestCloudEvents()
-           .AddRabbitMqOutboundTopology(
+           .AddRabbitMqTopology(
                 builder =>
                 {
                     builder.UseConnectionFactory(static _ => new ConnectionFactory());
@@ -1101,22 +1117,22 @@ public sealed class RabbitMqChannelGroupTests
             );
         using var serviceProvider = services.BuildServiceProvider();
 
-        Action act = () => _ = serviceProvider.GetRequiredService<RabbitMqOutboundTopology>();
+        Action act = () => _ = serviceProvider.GetRequiredService<RabbitMqTopology>();
 
-        var exception = act.Should().Throw<OutboundTopologyValidationException>().Which;
+        var exception = act.Should().Throw<TopologyValidationException>().Which;
         exception.ValidationErrors.Should().ContainSingle()
            .Which.Should().Be("Channel group 'orphaned' is configured but no outbound target references it.");
     }
 
     [Fact]
-    public void RabbitMqOutboundTopologyCompiler_LogsWorstCaseChannelCountAtCompileTime()
+    public void RabbitMqTopologyCompiler_LogsWorstCaseChannelCountAtCompileTime()
     {
         var loggerProvider = new RecordingLoggerProvider();
         using var loggerFactory = new RecordingLoggerFactory(loggerProvider);
         var services = new ServiceCollection();
         services.AddSingleton<ILoggerFactory>(loggerFactory);
         services.AddTestCloudEvents()
-           .AddRabbitMqOutboundTopology(
+           .AddRabbitMqTopology(
                 builder =>
                 {
                     builder.UseConnectionFactory(static _ => new ConnectionFactory());
@@ -1133,21 +1149,21 @@ public sealed class RabbitMqChannelGroupTests
             );
         using var serviceProvider = services.BuildServiceProvider();
 
-        _ = serviceProvider.GetRequiredService<RabbitMqOutboundTopology>();
+        _ = serviceProvider.GetRequiredService<RabbitMqTopology>();
 
         loggerProvider.Entries.Should().Contain(
             entry => entry.LogLevel == LogLevel.Information &&
                      entry.Message ==
-                     "RabbitMQ outbound topology may open up to 11 channels (channel group 'shared' max 11)"
+                     "RabbitMQ topology may open up to 11 channels (channel group 'shared' max 11)"
         );
     }
 
     [Fact]
-    public void RabbitMqOutboundTopologyCompiler_AssignsExplicitChannelGroupToEveryReferencingTarget()
+    public void RabbitMqTopologyCompiler_AssignsExplicitChannelGroupToEveryReferencingTarget()
     {
         var services = new ServiceCollection();
         services.AddTestCloudEvents()
-           .AddRabbitMqOutboundTopology(
+           .AddRabbitMqTopology(
                 builder =>
                 {
                     builder.UseConnectionFactory(static _ => new ConnectionFactory());
@@ -1178,7 +1194,7 @@ public sealed class RabbitMqChannelGroupTests
             );
         using var serviceProvider = services.BuildServiceProvider();
 
-        var topology = serviceProvider.GetRequiredService<RabbitMqOutboundTopology>();
+        var topology = serviceProvider.GetRequiredService<RabbitMqTopology>();
         var channelGroups = topology.Targets.Select(GetChannelGroup).Distinct().ToList();
 
         topology.Targets.Should().HaveCount(3);
@@ -1187,11 +1203,11 @@ public sealed class RabbitMqChannelGroupTests
     }
 
     [Fact]
-    public void RabbitMqOutboundTopologyCompiler_CreatesImplicitPrivateSingleChannelGroupsPerTarget()
+    public void RabbitMqTopologyCompiler_CreatesImplicitPrivateSingleChannelGroupsPerTarget()
     {
         var services = new ServiceCollection();
         services.AddTestCloudEvents()
-           .AddRabbitMqOutboundTopology(
+           .AddRabbitMqTopology(
                 builder =>
                 {
                     builder.UseConnectionFactory(static _ => new ConnectionFactory());
@@ -1212,23 +1228,23 @@ public sealed class RabbitMqChannelGroupTests
             );
         using var serviceProvider = services.BuildServiceProvider();
 
-        var topology = serviceProvider.GetRequiredService<RabbitMqOutboundTopology>();
+        var topology = serviceProvider.GetRequiredService<RabbitMqTopology>();
         var channelGroups = topology.Targets.Select(GetChannelGroup).ToList();
 
         topology.Targets.Should().HaveCount(3);
-        topology.ChannelGroups.Should().HaveCount(3);
-        topology.ChannelGroups.Should().OnlyContain(channelGroup => channelGroup.MaximumChannelCount == 1);
-        topology.ChannelGroups.Should().OnlyContain(
+        topology.OutboundChannelGroups.Should().HaveCount(3);
+        topology.OutboundChannelGroups.Should().OnlyContain(channelGroup => channelGroup.MaximumChannelCount == 1);
+        topology.OutboundChannelGroups.Should().OnlyContain(
             channelGroup => channelGroup.PublisherConfirmMode == RabbitMqPublisherConfirmMode.Confirms
         );
-        topology.ChannelGroups.Should().OnlyContain(
+        topology.OutboundChannelGroups.Should().OnlyContain(
             channelGroup => channelGroup.PublisherConfirmTimeout == TimeSpan.FromSeconds(30)
         );
         channelGroups.Distinct().Should().HaveCount(3);
     }
 
     [Fact]
-    public async Task RabbitMqOutboundTopology_DisposesChannelGroupsBeforeConnectionProvider()
+    public async Task RabbitMqTopology_DisposesChannelGroupsBeforeConnectionProvider()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var disposalEvents = new List<string>();
@@ -1251,7 +1267,7 @@ public sealed class RabbitMqChannelGroupTests
         disposalEvents.Should().Equal("channel-group", "connection");
     }
 
-    private static RabbitMqOutboundTopology CreateTopology(
+    private static RabbitMqTopology CreateTopology(
         RabbitMqConnectionProvider connectionProvider,
         IReadOnlyList<RabbitMqChannelGroup> channelGroups,
         int worstCaseChannelCount,
@@ -1261,10 +1277,12 @@ public sealed class RabbitMqChannelGroupTests
         RabbitMqChannelSource channelSource = new (connectionProvider);
         channelSource.SetChannelBudget(worstCaseChannelCount, description);
 
-        return new RabbitMqOutboundTopology(
-            new OutboundTopology(
+        return new RabbitMqTopology(
+            new Topology(
+                TopologyName.Default,
                 new Dictionary<Type, OutboundTarget>(),
-                new Dictionary<string, OutboundTarget>(StringComparer.Ordinal)
+                new Dictionary<string, OutboundTarget>(StringComparer.Ordinal),
+                new Dictionary<string, InboundEndpoint>(StringComparer.Ordinal)
             ),
             RabbitMqCloudEventsTestFactory.CreateRegistry(),
             Array.Empty<RabbitMqExchangeDefinition>(),
@@ -1273,22 +1291,30 @@ public sealed class RabbitMqChannelGroupTests
             Array.Empty<RabbitMqAddressDefinition>(),
             channelGroups,
             Array.Empty<OutboundTarget>(),
+            Array.Empty<RabbitMqInboundChannelGroup>(),
+            Array.Empty<RabbitMqInboundEndpoint>(),
+            new Dictionary<InboundEndpointSelectionKey, RabbitMqInboundEndpoint>(
+                InboundEndpointSelectionKeyComparer.Instance
+            ),
+            static _ => Task.CompletedTask,
+            TimeSpan.FromSeconds(30),
             connectionProvider,
             channelSource
         );
     }
 
-    private static RabbitMqOutboundTopology Compile(RabbitMqOutboundTopologyConfiguration configuration)
+    private static RabbitMqTopology Compile(RabbitMqTopologyConfiguration configuration)
     {
         RabbitMqConnectionProvider connectionProvider = new (
             _ => throw new InvalidOperationException("The validation test should not open a RabbitMQ connection.")
         );
-        RabbitMqOutboundTopologyCompiler compiler = new (
+        RabbitMqTopologyCompiler compiler = new (
             RabbitMqCloudEventsTestFactory.CreateRegistry(),
             NullLoggerFactory.Instance,
             serializerType => serializerType == typeof(CloudEventMessageSerializer) ?
                 RabbitMqCloudEventsTestFactory.CreateSerializer() :
-                null
+                null,
+            static _ => true
         );
 
         return compiler.Compile(TopologyName.Default, configuration, connectionProvider);
