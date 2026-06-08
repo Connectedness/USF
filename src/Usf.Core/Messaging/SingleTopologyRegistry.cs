@@ -9,9 +9,9 @@ namespace Usf.Core.Messaging;
 /// </summary>
 public sealed class SingleTopologyRegistry : ITopologyRegistry
 {
-    private readonly ITopology _topology;
+    private readonly TopologyDefinition _topology;
 
-    public SingleTopologyRegistry(ITopology topology)
+    public SingleTopologyRegistry(TopologyDefinition topology)
     {
         _topology = topology ?? throw new ArgumentNullException(nameof(topology));
         Names = [TopologyName.Default];
@@ -19,7 +19,7 @@ public sealed class SingleTopologyRegistry : ITopologyRegistry
 
     public IReadOnlyCollection<TopologyName> Names { get; }
 
-    public ITopology GetRequiredTopology(TopologyName name)
+    public TopologyDefinition GetRequiredTopology(TopologyName name)
     {
         if (TryGetTopology(name, out var topology) && topology is not null)
         {
@@ -31,7 +31,7 @@ public sealed class SingleTopologyRegistry : ITopologyRegistry
         );
     }
 
-    public bool TryGetTopology(TopologyName name, out ITopology? topology)
+    public bool TryGetTopology(TopologyName name, out TopologyDefinition? topology)
     {
         if (name == TopologyName.Default)
         {

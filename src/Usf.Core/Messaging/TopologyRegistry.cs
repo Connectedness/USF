@@ -17,7 +17,7 @@ public sealed class TopologyRegistry : ITopologyRegistry
 
     public IReadOnlyCollection<TopologyName> Names => _catalog.Names;
 
-    public ITopology GetRequiredTopology(TopologyName name)
+    public TopologyDefinition GetRequiredTopology(TopologyName name)
     {
         if (TryGetTopology(name, out var topology) && topology is not null)
         {
@@ -29,7 +29,7 @@ public sealed class TopologyRegistry : ITopologyRegistry
         );
     }
 
-    public bool TryGetTopology(TopologyName name, out ITopology? topology)
+    public bool TryGetTopology(TopologyName name, out TopologyDefinition? topology)
     {
         if (!_catalog.Contains(name))
         {
@@ -37,7 +37,7 @@ public sealed class TopologyRegistry : ITopologyRegistry
             return false;
         }
 
-        topology = _serviceProvider.GetRequiredKeyedService<ITopology>(name);
+        topology = _serviceProvider.GetRequiredKeyedService<TopologyDefinition>(name);
         return true;
     }
 }

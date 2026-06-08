@@ -68,7 +68,7 @@ public sealed class AddRabbitMqPublishTopologyTests
         using var serviceProvider = services.BuildServiceProvider();
 
         // ReSharper disable once AccessToDisposedClosure -- act is called before disposal
-        Action action = () => _ = serviceProvider.GetRequiredService<ITopology>();
+        Action action = () => _ = serviceProvider.GetRequiredService<TopologyDefinition>();
 
         var exception = action.Should().Throw<TopologyValidationException>().Which;
         exception.ValidationErrors.Should().ContainSingle().Which.Should().Be(
@@ -98,7 +98,7 @@ public sealed class AddRabbitMqPublishTopologyTests
         using var serviceProvider = services.BuildServiceProvider();
 
         // ReSharper disable once AccessToDisposedClosure -- act is called before disposal
-        Action action = () => _ = serviceProvider.GetRequiredService<ITopology>();
+        Action action = () => _ = serviceProvider.GetRequiredService<TopologyDefinition>();
 
         var exception = action.Should().Throw<TopologyValidationException>().Which;
         exception.ValidationErrors.Should().Contain(
@@ -147,7 +147,7 @@ public sealed class AddRabbitMqPublishTopologyTests
         using var serviceProvider = services.BuildServiceProvider();
 
         // ReSharper disable once AccessToDisposedClosure -- act is called before disposal
-        Action action = () => _ = serviceProvider.GetRequiredService<ITopology>();
+        Action action = () => _ = serviceProvider.GetRequiredService<TopologyDefinition>();
 
         var exception = action.Should().Throw<TopologyValidationException>().Which;
         exception.ValidationErrors.Should().Equal(
@@ -238,8 +238,8 @@ public sealed class AddRabbitMqPublishTopologyTests
             );
         using var serviceProvider = services.BuildServiceProvider();
 
-        var outboundTopology = serviceProvider.GetRequiredService<ITopology>();
-        var targetRegistry = serviceProvider.GetRequiredService<ITopology>();
+        var outboundTopology = serviceProvider.GetRequiredService<TopologyDefinition>();
+        var targetRegistry = serviceProvider.GetRequiredService<TopologyDefinition>();
 
         outboundTopology
            .GetRequiredTarget<ValidationMessageA>().GetType()
@@ -307,7 +307,7 @@ public sealed class AddRabbitMqPublishTopologyTests
             );
         using var serviceProvider = services.BuildServiceProvider();
 
-        Action action = () => _ = serviceProvider.GetRequiredService<ITopology>();
+        Action action = () => _ = serviceProvider.GetRequiredService<TopologyDefinition>();
 
         var exception = action.Should().Throw<TopologyValidationException>().Which;
         exception.ValidationErrors.Should().ContainSingle().Which.Should().Be(
@@ -342,7 +342,7 @@ public sealed class AddRabbitMqPublishTopologyTests
         using var serviceProvider = services.BuildServiceProvider();
 
         var target = serviceProvider
-           .GetRequiredService<ITopology>()
+           .GetRequiredService<TopologyDefinition>()
            .GetRequiredTarget<ValidationMessageB>();
 
         target.GetRequiredDiscriminator(typeof(ValidationMessageB)).Should().Be("tests.dialect-only");
@@ -380,7 +380,7 @@ public sealed class AddRabbitMqPublishTopologyTests
         using var serviceProvider = services.BuildServiceProvider();
 
         // ReSharper disable once AccessToDisposedClosure -- act is called before disposal
-        Action action = () => _ = serviceProvider.GetRequiredService<ITopology>();
+        Action action = () => _ = serviceProvider.GetRequiredService<TopologyDefinition>();
 
         var exception = action.Should().Throw<TopologyValidationException>().Which;
         exception.ValidationErrors.Should().BeEquivalentTo(

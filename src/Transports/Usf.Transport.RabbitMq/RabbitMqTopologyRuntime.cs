@@ -44,7 +44,7 @@ public sealed class RabbitMqTopologyRuntime : ITopologyRuntime
         _logger = logger ?? NullLogger<RabbitMqTopologyRuntime>.Instance;
     }
 
-    public TopologyName TopologyName => _topology.Topology.TopologyName;
+    public TopologyName TopologyName => _topology.Definition.TopologyName;
 
     public async Task StartAsync(CancellationToken cancellationToken = default)
     {

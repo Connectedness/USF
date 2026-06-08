@@ -21,7 +21,7 @@ public sealed class MessagePublisher : IMessagePublisher
         _topologyRegistry = topologyRegistry ?? throw new ArgumentNullException(nameof(topologyRegistry));
     }
 
-    public MessagePublisher(ITopology topology)
+    public MessagePublisher(TopologyDefinition topology)
         : this(new SingleTopologyRegistry(topology)) { }
 
     public TopologyPublisher ForTopology(TopologyName topologyName)

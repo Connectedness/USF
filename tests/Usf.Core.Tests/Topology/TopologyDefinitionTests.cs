@@ -7,13 +7,13 @@ using Xunit;
 
 namespace Usf.Core.Tests.Topology;
 
-public sealed class OutboundTopologyTests
+public sealed class TopologyDefinitionTests
 {
     [Fact]
     public void GetRequiredTarget_SupportsNamedTargetLookup()
     {
         var target = new RecordingTarget<SampleMessage>("named", CloudEventsTestFactory.CreateSerializer());
-        var topology = new Core.Messaging.Topology(
+        var topology = new TopologyDefinition(
             TopologyName.Default,
             new Dictionary<Type, OutboundTarget>
             {

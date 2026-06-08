@@ -65,17 +65,11 @@ public static class RabbitMqTransportModule
                 return compiler.Compile(topologyName, configuration, connectionProvider);
             }
         );
-        services.AddKeyedSingleton<ITopology>(
+        services.AddKeyedSingleton<TopologyDefinition>(
             topologyName,
             (serviceProvider, _) => serviceProvider
                .GetRequiredKeyedService<RabbitMqTopology>(topologyName)
-               .Topology
-        );
-        services.AddKeyedSingleton<Topology>(
-            topologyName,
-            (serviceProvider, _) => serviceProvider
-               .GetRequiredKeyedService<RabbitMqTopology>(topologyName)
-               .Topology
+               .Definition
         );
         if (topologyName == TopologyName.Default)
         {

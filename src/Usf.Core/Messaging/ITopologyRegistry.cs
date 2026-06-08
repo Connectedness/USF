@@ -11,7 +11,7 @@ public interface ITopologyRegistry
 {
     IReadOnlyCollection<TopologyName> Names { get; }
 
-    ITopology GetRequiredTopology(TopologyName name);
+    TopologyDefinition GetRequiredTopology(TopologyName name);
 
-    bool TryGetTopology(TopologyName name, out ITopology? topology);
+    bool TryGetTopology(TopologyName name, out TopologyDefinition? topology);
 }

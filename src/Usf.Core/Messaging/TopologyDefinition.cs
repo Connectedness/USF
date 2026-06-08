@@ -1,24 +1,26 @@
 using System;
+using System.Collections.Frozen;
 using System.Collections.Generic;
-using System.Collections.ObjectModel;
+using System.Collections.Immutable;
 using System.Linq;
 using Usf.Core.Messaging.Errors;
 
 namespace Usf.Core.Messaging;
 
 /// <summary>
-/// The immutable Core topology aggregate. It stores outbound targets indexed by name and by associated message
+/// The immutable Core topology definition. It stores outbound targets indexed by name and by associated message
 /// type, and inbound endpoint definitions indexed by name. Outbound targets and inbound endpoints stay
-/// independent entry types: the topology can list and resolve either, but publishing code only selects outbound
-/// targets while the inbound runtime owns inbound endpoints.
+/// independent entry types: the definition can list and resolve either, but publishing code only selects outbound
+/// targets while the inbound runtime owns inbound endpoints. A definition is built once during topology
+/// compilation and read on every publish and dispatch, so its lookups are backed by <see cref="FrozenDictionary{TKey,TValue}" />.
 /// </summary>
-public sealed class Topology : ITopology
+public sealed class TopologyDefinition
 {
-    private readonly IReadOnlyDictionary<string, InboundEndpoint> _endpointsByName;
-    private readonly IReadOnlyDictionary<Type, OutboundTarget> _targetsByMessageType;
-    private readonly IReadOnlyDictionary<string, OutboundTarget> _targetsByName;
+    private readonly FrozenDictionary<string, InboundEndpoint> _endpointsByName;
+    private readonly FrozenDictionary<Type, OutboundTarget> _targetsByMessageType;
+    private readonly FrozenDictionary<string, OutboundTarget> _targetsByName;
 
-    public Topology(
+    public TopologyDefinition(
         TopologyName topologyName,
         IDictionary<Type, OutboundTarget> targetsByMessageType,
         IDictionary<string, OutboundTarget> targetsByName,
@@ -41,24 +43,18 @@ public sealed class Topology : ITopology
         }
 
         TopologyName = topologyName;
-        _targetsByMessageType = new ReadOnlyDictionary<Type, OutboundTarget>(
-            new Dictionary<Type, OutboundTarget>(targetsByMessageType)
-        );
-        _targetsByName = new ReadOnlyDictionary<string, OutboundTarget>(
-            new Dictionary<string, OutboundTarget>(targetsByName, StringComparer.Ordinal)
-        );
-        _endpointsByName = new ReadOnlyDictionary<string, InboundEndpoint>(
-            new Dictionary<string, InboundEndpoint>(endpointsByName, StringComparer.Ordinal)
-        );
-        OutboundTargets = _targetsByMessageType.Values.Concat(_targetsByName.Values).Distinct().ToArray();
-        InboundEndpoints = _endpointsByName.Values.ToArray();
+        _targetsByMessageType = targetsByMessageType.ToFrozenDictionary();
+        _targetsByName = targetsByName.ToFrozenDictionary(StringComparer.Ordinal);
+        _endpointsByName = endpointsByName.ToFrozenDictionary(StringComparer.Ordinal);
+        OutboundTargets = [.._targetsByMessageType.Values.Concat(_targetsByName.Values).Distinct()];
+        InboundEndpoints = [.._endpointsByName.Values];
     }
 
     public TopologyName TopologyName { get; }
 
-    public IReadOnlyCollection<OutboundTarget> OutboundTargets { get; }
+    public ImmutableArray<OutboundTarget> OutboundTargets { get; }
 
-    public IReadOnlyCollection<InboundEndpoint> InboundEndpoints { get; }
+    public ImmutableArray<InboundEndpoint> InboundEndpoints { get; }
 
     public OutboundTarget GetRequiredTarget(Type messageType)
     {

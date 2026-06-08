@@ -10,7 +10,7 @@ using Usf.Transport.RabbitMq.Configuration;
 namespace Usf.Transport.RabbitMq;
 
 /// <summary>
-/// The compiled RabbitMQ topology. It holds one Core <see cref="Usf.Core.Messaging.Topology" /> projection plus
+/// The compiled RabbitMQ topology. It holds one Core <see cref="TopologyDefinition" /> plus
 /// RabbitMQ-specific runtime state: exchanges, queues, bindings, addresses, outbound channel groups, inbound
 /// channel groups, outbound targets, inbound endpoints, the inbound pipeline, the shutdown timeout, the
 /// connection provider, and the channel source. A topology owns exactly one
@@ -25,7 +25,7 @@ public sealed class RabbitMqTopology : IAsyncDisposable, IDisposable
     private int _disposed;
 
     public RabbitMqTopology(
-        Topology topology,
+        TopologyDefinition definition,
         IMessageContractRegistry messageContractRegistry,
         IReadOnlyList<RabbitMqExchangeDefinition> exchanges,
         IReadOnlyList<RabbitMqQueueDefinition> queues,
@@ -42,7 +42,7 @@ public sealed class RabbitMqTopology : IAsyncDisposable, IDisposable
         RabbitMqChannelSource channelSource
     )
     {
-        Topology = topology ?? throw new ArgumentNullException(nameof(topology));
+        Definition = definition ?? throw new ArgumentNullException(nameof(definition));
         MessageContractRegistry = messageContractRegistry ??
                                   throw new ArgumentNullException(nameof(messageContractRegistry));
         Exchanges = exchanges ?? throw new ArgumentNullException(nameof(exchanges));
@@ -60,7 +60,7 @@ public sealed class RabbitMqTopology : IAsyncDisposable, IDisposable
         _channelSource = channelSource ?? throw new ArgumentNullException(nameof(channelSource));
     }
 
-    public Topology Topology { get; }
+    public TopologyDefinition Definition { get; }
 
     public IMessageContractRegistry MessageContractRegistry { get; }
 

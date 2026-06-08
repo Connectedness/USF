@@ -138,7 +138,7 @@ public sealed class RabbitMqPublishingIntegrationTests
             }
 
             var publisher = serviceProvider.GetRequiredService<IMessagePublisher>();
-            var targetRegistry = serviceProvider.GetRequiredService<ITopology>();
+            var targetRegistry = serviceProvider.GetRequiredService<TopologyDefinition>();
             Activity? directProducerActivity = null;
             var directParentTraceId = default(ActivityTraceId);
             using var listener = new ActivityListener();
@@ -248,11 +248,11 @@ public sealed class RabbitMqPublishingIntegrationTests
             ExtractHeaderValue(headersMessage.BasicProperties.Headers!, "region").Should().Be("us");
 
             serviceProvider
-               .GetRequiredService<ITopology>()
+               .GetRequiredService<TopologyDefinition>()
                .GetRequiredTarget<RabbitMqPublishMessage>().Name
                .Should().Be(typeof(RabbitMqPublishMessage).FullName);
             serviceProvider
-               .GetRequiredService<ITopology>()
+               .GetRequiredService<TopologyDefinition>()
                .GetRequiredTarget<RabbitMqAuditMessage>().Name
                .Should().Be(typeof(RabbitMqAuditMessage).FullName);
             targetRegistry.GetRequiredTarget("topic-target").Should().NotBeNull();
@@ -427,7 +427,7 @@ public sealed class RabbitMqPublishingIntegrationTests
 
             var publisher = serviceProvider.GetRequiredService<IMessagePublisher>();
             var target = serviceProvider
-               .GetRequiredService<ITopology>()
+               .GetRequiredService<TopologyDefinition>()
                .GetRequiredTarget<RabbitMqPublishMessage>();
 
             // A payload that is deliberately not the JSON the serializer would produce proving USF

@@ -15,7 +15,7 @@ namespace Usf.Transport.RabbitMq;
 /// <summary>
 /// Validates a <see cref="RabbitMqTopologyConfiguration" /> and compiles it into a single
 /// <see cref="RabbitMqTopology" /> that owns one connection and projects both outbound targets and inbound
-/// endpoints onto one Core <see cref="Topology" />.
+/// endpoints onto one Core <see cref="TopologyDefinition" />.
 /// </summary>
 public sealed class RabbitMqTopologyCompiler
 {
@@ -91,7 +91,7 @@ public sealed class RabbitMqTopologyCompiler
         WarnWhenEmpty(topologyName, targets, endpoints);
 
         return new RabbitMqTopology(
-            new Topology(topologyName, defaultTargetsByMessageType, targetsByName, endpointsByName),
+            new TopologyDefinition(topologyName, defaultTargetsByMessageType, targetsByName, endpointsByName),
             effectiveMessageContracts,
             configuration.Exchanges,
             configuration.Queues,

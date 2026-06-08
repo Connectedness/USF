@@ -42,7 +42,7 @@ public sealed class AddRabbitMqConsumeTopologyTests
 
         serviceProvider.GetRequiredService<ITopologyRegistry>()
            .Names.Should().ContainSingle().Which.Should().Be(TopologyName.Default);
-        var topology = serviceProvider.GetRequiredService<ITopology>();
+        var topology = serviceProvider.GetRequiredService<TopologyDefinition>();
         topology.GetRequiredTarget<ValidationMessageA>()
            .TopologyName.Should().Be(TopologyName.Default);
         topology.InboundEndpoints.Should().ContainSingle()
@@ -159,7 +159,7 @@ public sealed class AddRabbitMqConsumeTopologyTests
             );
         using var serviceProvider = services.BuildServiceProvider();
 
-        Action action = () => _ = serviceProvider.GetRequiredService<ITopology>();
+        Action action = () => _ = serviceProvider.GetRequiredService<TopologyDefinition>();
 
         var exception = action.Should().Throw<TopologyValidationException>().Which;
         exception.ValidationErrors.Should().Contain(

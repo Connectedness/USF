@@ -47,7 +47,7 @@ public static class UsfServiceCollectionExtensions
                 serviceProvider.GetRequiredService<ITopologyRegistry>()
             )
         );
-        services.TryAddSingleton<ITopology>(
+        services.TryAddSingleton<TopologyDefinition>(
             static serviceProvider => serviceProvider
                .GetRequiredService<ITopologyRegistry>()
                .GetRequiredTopology(TopologyName.Default)
