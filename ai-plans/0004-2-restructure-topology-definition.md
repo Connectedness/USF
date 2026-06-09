@@ -8,18 +8,18 @@ Breaking changes are welcome here, we have not published the library yet.
 
 ## Acceptance Criteria
 
-- [ ] `TopologyDefinition` is removed from the codebase; no compatibility alias remains.
-- [ ] `Usf.Core` exposes a `public abstract class Topology` that carries the topology name, outbound targets, and inbound endpoints, plus the existing resolve/try-get lookup surface for targets (by name and by message type) and endpoints (by name).
-- [ ] Each transport topology derives from `Topology`; `RabbitMqTopology : Topology`.
-- [ ] Topology lookups remain backed by immutable data structures (`FrozenDictionary<TKey, TValue>`, `ImmutableArray<T>`) with ordinal string comparison.
-- [ ] `Topology` exposes `IsEmpty` (no outbound targets and no inbound endpoints), `IsOutboundOnly` (only outbound targets), and `IsInboundOnly` (only inbound endpoints).
-- [ ] The frozen-dictionary/immutable-array assembly logic is moved out of the constructor into a static `PrepareTopologyDataStructures` method on a `public readonly record struct TopologyData`; the `Topology` constructor performs only field assignment from a `TopologyData` value.
-- [ ] `TopologyName` is removed entirely from the codebase and replaced with `string`; its null/whitespace validation is enforced both at registration time (`TopologyRegistrationCatalog.Add`) and in the `Topology` constructor, and its `Default` sentinel becomes a `Topology.DefaultName` constant.
-- [ ] `Topology` does not implement `IDisposable` or `IAsyncDisposable`; `RabbitMqTopology` continues to implement both.
-- [ ] `ITopologyRegistry`, `TopologyRegistry`, `SingleTopologyRegistry`, and `TopologyRegistrationCatalog` work with `Topology` and `string` topology names.
-- [ ] RabbitMQ registers a keyed `RabbitMqTopology` per topology name plus a keyed `Topology` that delegates to it, so both the concrete and base service types resolve the same instance.
-- [ ] Existing outbound publishing and inbound consumer behavior are preserved.
-- [ ] Automated tests are updated for the new `Topology` base type, the `IsEmpty`/`IsOutboundOnly`/`IsInboundOnly` properties, `string`-keyed registration, and duplicate topology-name rejection.
+- [x] `TopologyDefinition` is removed from the codebase; no compatibility alias remains.
+- [x] `Usf.Core` exposes a `public abstract class Topology` that carries the topology name, outbound targets, and inbound endpoints, plus the existing resolve/try-get lookup surface for targets (by name and by message type) and endpoints (by name).
+- [x] Each transport topology derives from `Topology`; `RabbitMqTopology : Topology`.
+- [x] Topology lookups remain backed by immutable data structures (`FrozenDictionary<TKey, TValue>`, `ImmutableArray<T>`) with ordinal string comparison.
+- [x] `Topology` exposes `IsEmpty` (no outbound targets and no inbound endpoints), `IsOutboundOnly` (only outbound targets), and `IsInboundOnly` (only inbound endpoints).
+- [x] The frozen-dictionary/immutable-array assembly logic is moved out of the constructor into a static `PrepareTopologyDataStructures` method on a `public readonly record struct TopologyData`; the `Topology` constructor performs only field assignment from a `TopologyData` value.
+- [x] `TopologyName` is removed entirely from the codebase and replaced with `string`; its null/whitespace validation is enforced both at registration time (`TopologyRegistrationCatalog.Add`) and in the `Topology` constructor, and its `Default` sentinel becomes a `Topology.DefaultName` constant.
+- [x] `Topology` does not implement `IDisposable` or `IAsyncDisposable`; `RabbitMqTopology` continues to implement both.
+- [x] `ITopologyRegistry`, `TopologyRegistry`, `SingleTopologyRegistry`, and `TopologyRegistrationCatalog` work with `Topology` and `string` topology names.
+- [x] RabbitMQ registers a keyed `RabbitMqTopology` per topology name plus a keyed `Topology` that delegates to it, so both the concrete and base service types resolve the same instance.
+- [x] Existing outbound publishing and inbound consumer behavior are preserved.
+- [x] Automated tests are updated for the new `Topology` base type, the `IsEmpty`/`IsOutboundOnly`/`IsInboundOnly` properties, `string`-keyed registration, and duplicate topology-name rejection.
 
 ## Technical Details
 

@@ -9,9 +9,9 @@ namespace Usf.Core.Messaging;
 /// </summary>
 public interface ITopologyRegistry
 {
-    IReadOnlyCollection<TopologyName> Names { get; }
+    IReadOnlyCollection<string> Names { get; }
 
-    TopologyDefinition GetRequiredTopology(TopologyName name);
+    Topology GetRequiredTopology(string name);
 
-    bool TryGetTopology(TopologyName name, out TopologyDefinition? topology);
+    bool TryGetTopology(string name, out Topology? topology);
 }

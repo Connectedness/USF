@@ -15,9 +15,9 @@ public sealed class TopologyRegistry : ITopologyRegistry
         _catalog = catalog ?? throw new ArgumentNullException(nameof(catalog));
     }
 
-    public IReadOnlyCollection<TopologyName> Names => _catalog.Names;
+    public IReadOnlyCollection<string> Names => _catalog.Names;
 
-    public TopologyDefinition GetRequiredTopology(TopologyName name)
+    public Topology GetRequiredTopology(string name)
     {
         if (TryGetTopology(name, out var topology) && topology is not null)
         {
@@ -25,11 +25,11 @@ public sealed class TopologyRegistry : ITopologyRegistry
         }
 
         throw new InvalidOperationException(
-            $"Topology '{name.Value}' is not registered. Registered topologies: {TopologyRegistrationCatalog.FormatNames(Names)}."
+            $"Topology '{name}' is not registered. Registered topologies: {TopologyRegistrationCatalog.FormatNames(Names)}."
         );
     }
 
-    public bool TryGetTopology(TopologyName name, out TopologyDefinition? topology)
+    public bool TryGetTopology(string name, out Topology? topology)
     {
         if (!_catalog.Contains(name))
         {
@@ -37,7 +37,7 @@ public sealed class TopologyRegistry : ITopologyRegistry
             return false;
         }
 
-        topology = _serviceProvider.GetRequiredKeyedService<TopologyDefinition>(name);
+        topology = _serviceProvider.GetRequiredKeyedService<Topology>(name);
         return true;
     }
 }

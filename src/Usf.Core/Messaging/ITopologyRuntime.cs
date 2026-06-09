@@ -12,7 +12,7 @@ namespace Usf.Core.Messaging;
 /// </summary>
 public interface ITopologyRuntime
 {
-    TopologyName TopologyName { get; }
+    string TopologyName { get; }
 
     Task StartAsync(CancellationToken cancellationToken = default);
 

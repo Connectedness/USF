@@ -18,12 +18,12 @@ public static class RabbitMqTransportModule
         Action<RabbitMqTopologyBuilder> configure
     )
     {
-        return builder.AddRabbitMqTopology(TopologyName.Default, configure);
+        return builder.AddRabbitMqTopology(Topology.DefaultName, configure);
     }
 
     public static UsfBuilder AddRabbitMqTopology(
         this UsfBuilder builder,
-        TopologyName topologyName,
+        string topologyName,
         Action<RabbitMqTopologyBuilder> configure
     )
     {
@@ -65,13 +65,11 @@ public static class RabbitMqTransportModule
                 return compiler.Compile(topologyName, configuration, connectionProvider);
             }
         );
-        services.AddKeyedSingleton<TopologyDefinition>(
+        services.AddKeyedSingleton<Topology>(
             topologyName,
-            (serviceProvider, _) => serviceProvider
-               .GetRequiredKeyedService<RabbitMqTopology>(topologyName)
-               .Definition
+            (serviceProvider, key) => serviceProvider.GetRequiredKeyedService<RabbitMqTopology>(key)
         );
-        if (topologyName == TopologyName.Default)
+        if (string.Equals(topologyName, Topology.DefaultName, StringComparison.Ordinal))
         {
             services.TryAddSingleton<RabbitMqTopology>(
                 serviceProvider => serviceProvider.GetRequiredKeyedService<RabbitMqTopology>(topologyName)
@@ -107,13 +105,13 @@ public static class RabbitMqTransportModule
         Action<RabbitMqTopologyBuilder> configure
     )
     {
-        return builder.AddRabbitMqTopology(TopologyName.Default, configure);
+        return builder.AddRabbitMqTopology(Topology.DefaultName, configure);
     }
 
     /// <inheritdoc cref="AddRabbitMqOutboundTopology(UsfBuilder, Action{RabbitMqTopologyBuilder})" />
     public static UsfBuilder AddRabbitMqOutboundTopology(
         this UsfBuilder builder,
-        TopologyName topologyName,
+        string topologyName,
         Action<RabbitMqTopologyBuilder> configure
     )
     {
@@ -129,13 +127,13 @@ public static class RabbitMqTransportModule
         Action<RabbitMqTopologyBuilder> configure
     )
     {
-        return builder.AddRabbitMqTopology(TopologyName.Default, configure);
+        return builder.AddRabbitMqTopology(Topology.DefaultName, configure);
     }
 
     /// <inheritdoc cref="AddRabbitMqInboundTopology(UsfBuilder, Action{RabbitMqTopologyBuilder})" />
     public static UsfBuilder AddRabbitMqInboundTopology(
         this UsfBuilder builder,
-        TopologyName topologyName,
+        string topologyName,
         Action<RabbitMqTopologyBuilder> configure
     )
     {

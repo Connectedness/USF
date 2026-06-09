@@ -7,7 +7,7 @@ public abstract class RabbitMqInboundEndpoint : InboundEndpoint
 {
     protected RabbitMqInboundEndpoint(
         string name,
-        TopologyName topologyName,
+        string topologyName,
         Type messageType,
         Type handlerType,
         Type serializerType,
@@ -62,7 +62,7 @@ public sealed class RabbitMqInboundEndpoint<TMessage> : RabbitMqInboundEndpoint
 {
     public RabbitMqInboundEndpoint(
         string name,
-        TopologyName topologyName,
+        string topologyName,
         Type handlerType,
         Type serializerType,
         string discriminator,

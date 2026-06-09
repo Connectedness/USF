@@ -41,12 +41,24 @@ public sealed class AddRabbitMqConsumeTopologyTests
         using var serviceProvider = services.BuildServiceProvider();
 
         serviceProvider.GetRequiredService<ITopologyRegistry>()
-           .Names.Should().ContainSingle().Which.Should().Be(TopologyName.Default);
-        var topology = serviceProvider.GetRequiredService<TopologyDefinition>();
+           .Names.Should().ContainSingle().Which.Should().Be(Topology.DefaultName);
+        var topology = serviceProvider.GetRequiredService<Topology>();
+        var keyedTopology = serviceProvider.GetRequiredKeyedService<Topology>(Topology.DefaultName);
+        var rabbitMqTopology = serviceProvider.GetRequiredKeyedService<RabbitMqTopology>(Topology.DefaultName);
+
+        topology.Should().BeSameAs(rabbitMqTopology);
+        keyedTopology.Should().BeSameAs(rabbitMqTopology);
+        topology.IsEmpty.Should().BeFalse();
+        topology.IsOutboundOnly.Should().BeFalse();
+        topology.IsInboundOnly.Should().BeFalse();
+        typeof(IDisposable).IsAssignableFrom(typeof(Topology)).Should().BeFalse();
+        typeof(IAsyncDisposable).IsAssignableFrom(typeof(Topology)).Should().BeFalse();
+        typeof(IDisposable).IsAssignableFrom(typeof(RabbitMqTopology)).Should().BeTrue();
+        typeof(IAsyncDisposable).IsAssignableFrom(typeof(RabbitMqTopology)).Should().BeTrue();
         topology.GetRequiredTarget<ValidationMessageA>()
-           .TopologyName.Should().Be(TopologyName.Default);
+           .TopologyName.Should().Be(Topology.DefaultName);
         topology.InboundEndpoints.Should().ContainSingle()
-           .Which.TopologyName.Should().Be(TopologyName.Default);
+           .Which.TopologyName.Should().Be(Topology.DefaultName);
     }
 
     [Fact]
@@ -65,8 +77,8 @@ public sealed class AddRabbitMqConsumeTopologyTests
     [Fact]
     public void InboundTopologyRegistry_ResolvesNamedTopologiesIndependently()
     {
-        TopologyName firstTopologyName = new ("first");
-        TopologyName secondTopologyName = new ("second");
+        const string firstTopologyName = "first";
+        const string secondTopologyName = "second";
         var services = new ServiceCollection();
         services.AddScoped<IMessageHandler<ValidationMessageA>, ValidationMessageAHandler>();
         services.AddScoped<IMessageHandler<ValidationMessageB>, ValidationMessageBHandler>();
@@ -159,7 +171,7 @@ public sealed class AddRabbitMqConsumeTopologyTests
             );
         using var serviceProvider = services.BuildServiceProvider();
 
-        Action action = () => _ = serviceProvider.GetRequiredService<TopologyDefinition>();
+        Action action = () => _ = serviceProvider.GetRequiredService<Topology>();
 
         var exception = action.Should().Throw<TopologyValidationException>().Which;
         exception.ValidationErrors.Should().Contain(
@@ -243,7 +255,7 @@ public sealed class AddRabbitMqConsumeTopologyTests
     [Fact]
     public void SeparatePublishAndConsumeTopologies_OwnDistinctConnectionsAndRegisterRuntimeOnlyForConsumer()
     {
-        TopologyName consumerTopologyName = new ("rabbitmq-consumers");
+        const string consumerTopologyName = "rabbitmq-consumers";
         var services = new ServiceCollection();
         services.AddScoped<IMessageHandler<ValidationMessageA>, ValidationMessageAHandler>();
         services.AddTestCloudEvents()
@@ -275,12 +287,12 @@ public sealed class AddRabbitMqConsumeTopologyTests
         using var serviceProvider = services.BuildServiceProvider();
 
         var registry = serviceProvider.GetRequiredService<ITopologyRegistry>();
-        registry.Names.Should().BeEquivalentTo([TopologyName.Default, consumerTopologyName]);
+        registry.Names.Should().BeEquivalentTo(Topology.DefaultName, consumerTopologyName);
 
         // The default topology is the publish topology and has the outbound target.
-        registry.GetRequiredTopology(TopologyName.Default)
+        registry.GetRequiredTopology(Topology.DefaultName)
            .GetRequiredTarget<ValidationMessageA>()
-           .TopologyName.Should().Be(TopologyName.Default);
+           .TopologyName.Should().Be(Topology.DefaultName);
 
         // The consuming-only topology is reachable through the registry but exposes no outbound targets.
         var consumerTopology = registry.GetRequiredTopology(consumerTopologyName);
@@ -289,7 +301,7 @@ public sealed class AddRabbitMqConsumeTopologyTests
            .Which.TopologyName.Should().Be(consumerTopologyName);
 
         // Each topology owns exactly one connection provider, so they are distinct instances.
-        var publishTopology = serviceProvider.GetRequiredKeyedService<RabbitMqTopology>(TopologyName.Default);
+        var publishTopology = serviceProvider.GetRequiredKeyedService<RabbitMqTopology>(Topology.DefaultName);
         var consumeTopology = serviceProvider.GetRequiredKeyedService<RabbitMqTopology>(consumerTopologyName);
         publishTopology.Should().NotBeSameAs(consumeTopology);
 
@@ -301,7 +313,7 @@ public sealed class AddRabbitMqConsumeTopologyTests
     [Fact]
     public void PublishingThroughConsumingOnlyTopology_FailsWithOutboundTargetNotFound()
     {
-        TopologyName consumerTopologyName = new ("rabbitmq-consumers");
+        const string consumerTopologyName = "rabbitmq-consumers";
         var services = new ServiceCollection();
         services.AddScoped<IMessageHandler<ValidationMessageA>, ValidationMessageAHandler>();
         services.AddTestCloudEvents()

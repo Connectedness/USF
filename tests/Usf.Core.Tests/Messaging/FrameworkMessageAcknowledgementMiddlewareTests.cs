@@ -92,7 +92,7 @@ public sealed class FrameworkMessageAcknowledgementMiddlewareTests
             new InboundEndpoint<TestMessage>(
                 "endpoint",
                 "test",
-                TopologyName.Default,
+                Topology.DefaultName,
                 typeof(TestHandler),
                 typeof(CloudEventMessageSerializer),
                 "tests.message",

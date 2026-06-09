@@ -47,10 +47,10 @@ public static class UsfServiceCollectionExtensions
                 serviceProvider.GetRequiredService<ITopologyRegistry>()
             )
         );
-        services.TryAddSingleton<TopologyDefinition>(
+        services.TryAddSingleton<Topology>(
             static serviceProvider => serviceProvider
                .GetRequiredService<ITopologyRegistry>()
-               .GetRequiredTopology(TopologyName.Default)
+               .GetRequiredTopology(Topology.DefaultName)
         );
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, TopologyProvisioningHostedService>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, TopologyRuntimeHostedService>());

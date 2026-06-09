@@ -21,10 +21,10 @@ public sealed class MessagePublisher : IMessagePublisher
         _topologyRegistry = topologyRegistry ?? throw new ArgumentNullException(nameof(topologyRegistry));
     }
 
-    public MessagePublisher(TopologyDefinition topology)
+    public MessagePublisher(Topology topology)
         : this(new SingleTopologyRegistry(topology)) { }
 
-    public TopologyPublisher ForTopology(TopologyName topologyName)
+    public TopologyPublisher ForTopology(string topologyName)
     {
         return new TopologyPublisher(this, topologyName);
     }
@@ -41,7 +41,7 @@ public sealed class MessagePublisher : IMessagePublisher
         }
 
         var metadata = CloudEventMetadata.From(message);
-        return PublishMessageAsync(message, in metadata, target, TopologyName.Default, cancellationToken);
+        return PublishMessageAsync(message, in metadata, target, Topology.DefaultName, cancellationToken);
     }
 
     public Task PublishMessageAsync<T>(
@@ -51,7 +51,7 @@ public sealed class MessagePublisher : IMessagePublisher
         CancellationToken cancellationToken = default
     )
     {
-        return PublishMessageAsync(message, in metadata, target, TopologyName.Default, cancellationToken);
+        return PublishMessageAsync(message, in metadata, target, Topology.DefaultName, cancellationToken);
     }
 
     public async Task PublishRawAsync(
@@ -60,13 +60,13 @@ public sealed class MessagePublisher : IMessagePublisher
         CancellationToken cancellationToken = default
     )
     {
-        await PublishRawAsync(message, target, TopologyName.Default, cancellationToken).ConfigureAwait(false);
+        await PublishRawAsync(message, target, Topology.DefaultName, cancellationToken).ConfigureAwait(false);
     }
 
     public Task PublishMessageAsync<T>(
         T message,
         OutboundTarget? target,
-        TopologyName topologyName,
+        string topologyName,
         CancellationToken cancellationToken = default
     ) where T : ICloudEvent
     {
@@ -83,7 +83,7 @@ public sealed class MessagePublisher : IMessagePublisher
         T message,
         in CloudEventMetadata metadata,
         OutboundTarget? target,
-        TopologyName topologyName,
+        string topologyName,
         CancellationToken cancellationToken = default
     )
     {
@@ -93,7 +93,7 @@ public sealed class MessagePublisher : IMessagePublisher
     public async Task PublishRawAsync(
         SerializedMessage message,
         OutboundTarget target,
-        TopologyName topologyName,
+        string topologyName,
         CancellationToken cancellationToken = default
     )
     {
@@ -125,7 +125,7 @@ public sealed class MessagePublisher : IMessagePublisher
         T message,
         CloudEventMetadata metadata,
         OutboundTarget? target,
-        TopologyName topologyName,
+        string topologyName,
         CancellationToken cancellationToken
     )
     {
@@ -294,17 +294,19 @@ public sealed class MessagePublisher : IMessagePublisher
 
     private static void ValidateExplicitTargetTopology(
         OutboundTarget target,
-        TopologyName topologyName,
+        string topologyName,
         bool hasExplicitTarget = true
     )
     {
-        if (!hasExplicitTarget || topologyName == TopologyName.Default || target.TopologyName == topologyName)
+        if (!hasExplicitTarget ||
+            string.Equals(topologyName, Topology.DefaultName, StringComparison.Ordinal) ||
+            string.Equals(target.TopologyName, topologyName, StringComparison.Ordinal))
         {
             return;
         }
 
         throw new InvalidOperationException(
-            $"Outbound target '{target.Name}' belongs to outbound topology '{target.TopologyName.Value}', but publish requested outbound topology '{topologyName.Value}'."
+            $"Outbound target '{target.Name}' belongs to outbound topology '{target.TopologyName}', but publish requested outbound topology '{topologyName}'."
         );
     }
 

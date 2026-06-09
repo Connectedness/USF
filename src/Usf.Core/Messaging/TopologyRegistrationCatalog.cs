@@ -6,38 +6,42 @@ using System.Linq;
 namespace Usf.Core.Messaging;
 
 /// <summary>
-/// Tracks the registered topology names. Topology names form a single namespace keyed by <see cref="TopologyName" />
-/// that matches the one-connection/client ownership boundary, so registering the same name twice fails even when
+/// Tracks the registered topology names. Topology names form a single ordinal string namespace that matches the
+/// one-connection/client ownership boundary, so registering the same name twice fails even when
 /// one registration is publish-only and the other is consume-only.
 /// </summary>
 public sealed class TopologyRegistrationCatalog
 {
-    private readonly List<TopologyName> _names = [];
-    private readonly HashSet<TopologyName> _namesSet = [];
+    private readonly List<string> _names = [];
+    private readonly HashSet<string> _namesSet = new (StringComparer.Ordinal);
 
-    public IReadOnlyCollection<TopologyName> Names => new ReadOnlyCollection<TopologyName>(_names);
+    public IReadOnlyCollection<string> Names => new ReadOnlyCollection<string>(_names);
 
-    public void Add(TopologyName name)
+    public void Add(string name)
     {
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            throw new ArgumentException("The value cannot be null or whitespace.", nameof(name));
+        }
+
         if (!_namesSet.Add(name))
         {
             throw new InvalidOperationException(
-                $"Topology '{name.Value}' is already registered. Registered topologies: {FormatNames(_names)}."
+                $"Topology '{name}' is already registered. Registered topologies: {FormatNames(_names)}."
             );
         }
 
         _names.Add(name);
     }
 
-    public bool Contains(TopologyName name)
+    public bool Contains(string name)
     {
         return _namesSet.Contains(name);
     }
 
-    public static string FormatNames(IEnumerable<TopologyName> names)
+    public static string FormatNames(IEnumerable<string> names)
     {
         var values = names
-           .Select(static name => name.Value)
            .OrderBy(static value => value, StringComparer.Ordinal)
            .ToArray();
 

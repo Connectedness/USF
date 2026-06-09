@@ -10,14 +10,14 @@ using Usf.Transport.RabbitMq.Configuration;
 namespace Usf.Transport.RabbitMq;
 
 /// <summary>
-/// The compiled RabbitMQ topology. It holds one Core <see cref="TopologyDefinition" /> plus
-/// RabbitMQ-specific runtime state: exchanges, queues, bindings, addresses, outbound channel groups, inbound
+/// The compiled RabbitMQ topology. It extends the Core <see cref="Topology" /> with RabbitMQ-specific runtime
+/// state: exchanges, queues, bindings, addresses, outbound channel groups, inbound
 /// channel groups, outbound targets, inbound endpoints, the inbound pipeline, the shutdown timeout, the
 /// connection provider, and the channel source. A topology owns exactly one
 /// <see cref="RabbitMqConnectionProvider" />; register separate topology instances when separate publisher and
 /// consumer connections are wanted.
 /// </summary>
-public sealed class RabbitMqTopology : IAsyncDisposable, IDisposable
+public sealed class RabbitMqTopology : Topology, IAsyncDisposable, IDisposable
 {
     private readonly RabbitMqChannelSource _channelSource;
     private readonly RabbitMqConnectionProvider _connectionProvider;
@@ -25,7 +25,8 @@ public sealed class RabbitMqTopology : IAsyncDisposable, IDisposable
     private int _disposed;
 
     public RabbitMqTopology(
-        TopologyDefinition definition,
+        string name,
+        TopologyData data,
         IMessageContractRegistry messageContractRegistry,
         IReadOnlyList<RabbitMqExchangeDefinition> exchanges,
         IReadOnlyList<RabbitMqQueueDefinition> queues,
@@ -40,9 +41,8 @@ public sealed class RabbitMqTopology : IAsyncDisposable, IDisposable
         TimeSpan shutdownTimeout,
         RabbitMqConnectionProvider connectionProvider,
         RabbitMqChannelSource channelSource
-    )
+    ) : base(name, data)
     {
-        Definition = definition ?? throw new ArgumentNullException(nameof(definition));
         MessageContractRegistry = messageContractRegistry ??
                                   throw new ArgumentNullException(nameof(messageContractRegistry));
         Exchanges = exchanges ?? throw new ArgumentNullException(nameof(exchanges));
@@ -59,8 +59,6 @@ public sealed class RabbitMqTopology : IAsyncDisposable, IDisposable
         _connectionProvider = connectionProvider ?? throw new ArgumentNullException(nameof(connectionProvider));
         _channelSource = channelSource ?? throw new ArgumentNullException(nameof(channelSource));
     }
-
-    public TopologyDefinition Definition { get; }
 
     public IMessageContractRegistry MessageContractRegistry { get; }
 
@@ -83,8 +81,6 @@ public sealed class RabbitMqTopology : IAsyncDisposable, IDisposable
     public MessageDelegate Pipeline { get; }
 
     public TimeSpan ShutdownTimeout { get; }
-
-    public bool HasInboundEndpoints => Endpoints.Count > 0;
 
     public IEnumerable<IGrouping<RabbitMqInboundChannelGroup, RabbitMqInboundEndpoint>> EndpointsByChannelGroup =>
         Endpoints.GroupBy(static endpoint => endpoint.ChannelGroup);

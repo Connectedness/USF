@@ -23,8 +23,8 @@ public sealed class MessagePublisherTests
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var target = new RecordingTarget<SampleMessage>("default", CloudEventsTestFactory.CreateSerializer());
-        var topology = new TopologyDefinition(
-            TopologyName.Default,
+        var topology = new TestTopology(
+            Topology.DefaultName,
             new Dictionary<Type, OutboundTarget>
             {
                 [typeof(SampleMessage)] = target
@@ -50,7 +50,7 @@ public sealed class MessagePublisherTests
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var explicitTarget = new RecordingTarget<SampleMessage>("explicit", CloudEventsTestFactory.CreateSerializer());
-        var publisher = new MessagePublisher(EmptyTopologyDefinition.Create());
+        var publisher = new MessagePublisher(EmptyTopology.Create());
         var message = new SampleMessage("hello");
 
         await publisher.PublishMessageAsync(message, explicitTarget, cancellationToken);
@@ -73,7 +73,7 @@ public sealed class MessagePublisherTests
             new CloudEventsOptions { Source = "/tests/core" }
         );
         var target = new RecordingTarget<ThirdPartyMessage>("third-party", serializer, registry);
-        var publisher = new MessagePublisher(EmptyTopologyDefinition.Create());
+        var publisher = new MessagePublisher(EmptyTopology.Create());
         CloudEventMetadata metadata = new (
             Guid.Parse("f39b562b-b846-48e6-a693-4108015e7c82"),
             new DateTimeOffset(2026, 5, 31, 12, 34, 56, TimeSpan.Zero),
@@ -96,7 +96,7 @@ public sealed class MessagePublisherTests
     [Fact]
     public async Task PublishMessageAsync_RejectsNullMessages()
     {
-        var publisher = new MessagePublisher(EmptyTopologyDefinition.Create());
+        var publisher = new MessagePublisher(EmptyTopology.Create());
         var metadata = default(CloudEventMetadata);
 
         var action = async () => await publisher.PublishMessageAsync<string>(null!, in metadata);
@@ -107,7 +107,7 @@ public sealed class MessagePublisherTests
     [Fact]
     public async Task PublishMessageAsync_ThrowsWhenNoTargetIsConfigured()
     {
-        var publisher = new MessagePublisher(EmptyTopologyDefinition.Create());
+        var publisher = new MessagePublisher(EmptyTopology.Create());
 
         var action = async () => await publisher.PublishMessageAsync(new SampleMessage("hello"));
 
@@ -187,7 +187,7 @@ public sealed class MessagePublisherTests
             CloudEventsTestFactory.CreateRegistry(),
             "legacy"
         );
-        var publisher = new MessagePublisher(EmptyTopologyDefinition.Create());
+        var publisher = new MessagePublisher(EmptyTopology.Create());
 
         var action = async () => await publisher
            .ForTopology("modern")
@@ -203,7 +203,7 @@ public sealed class MessagePublisherTests
     public async Task PublishMessageAsync_ThrowsWhenExplicitTargetDoesNotMatchMessageType()
     {
         var target = new RecordingTarget<OtherMessage>("other", CloudEventsTestFactory.CreateSerializer());
-        var publisher = new MessagePublisher(EmptyTopologyDefinition.Create());
+        var publisher = new MessagePublisher(EmptyTopology.Create());
 
         var action = async () => await publisher.PublishMessageAsync(new SampleMessage("hello"), target);
 
@@ -223,7 +223,7 @@ public sealed class MessagePublisherTests
             CloudEventsTestFactory.CreateSerializer(),
             registry
         );
-        var publisher = new MessagePublisher(EmptyTopologyDefinition.Create());
+        var publisher = new MessagePublisher(EmptyTopology.Create());
         BaseSampleMessage message = new DerivedSampleMessage("hello", "detail");
 
         await publisher.PublishMessageAsync(message, target, cancellationToken);
@@ -241,7 +241,7 @@ public sealed class MessagePublisherTests
             "raw",
             new ThrowingSerializer(new InvalidOperationException("serializer should not run"))
         );
-        var publisher = new MessagePublisher(EmptyTopologyDefinition.Create());
+        var publisher = new MessagePublisher(EmptyTopology.Create());
         SerializedMessage message = new (
             "prepared"u8.ToArray(),
             "application/custom",
@@ -264,7 +264,7 @@ public sealed class MessagePublisherTests
     public async Task PublishRawAsync_RejectsMessagesWithoutABody()
     {
         var target = new RecordingTarget<SampleMessage>("raw", CloudEventsTestFactory.CreateSerializer());
-        var publisher = new MessagePublisher(EmptyTopologyDefinition.Create());
+        var publisher = new MessagePublisher(EmptyTopology.Create());
 
         var action = async () => await publisher.PublishRawAsync(default, target);
 
@@ -297,7 +297,7 @@ public sealed class MessagePublisherTests
             CloudEventsTestFactory.CreateSerializer(),
             deliveryException
         );
-        var publisher = new MessagePublisher(EmptyTopologyDefinition.Create());
+        var publisher = new MessagePublisher(EmptyTopology.Create());
 
         var action = async () => await publisher.PublishMessageAsync(new SampleMessage("hello"), target);
 

@@ -7,7 +7,7 @@ public abstract class InboundEndpoint
     protected InboundEndpoint(
         string name,
         string transportName,
-        TopologyName topologyName,
+        string topologyName,
         Type messageType,
         Type handlerType,
         Type serializerType,
@@ -17,7 +17,7 @@ public abstract class InboundEndpoint
     {
         Name = RequireText(name, nameof(name));
         TransportName = RequireText(transportName, nameof(transportName));
-        TopologyName = topologyName;
+        TopologyName = RequireText(topologyName, nameof(topologyName));
         MessageType = messageType ?? throw new ArgumentNullException(nameof(messageType));
         HandlerType = handlerType ?? throw new ArgumentNullException(nameof(handlerType));
         SerializerType = serializerType ?? throw new ArgumentNullException(nameof(serializerType));
@@ -43,7 +43,7 @@ public abstract class InboundEndpoint
 
     public string TransportName { get; }
 
-    public TopologyName TopologyName { get; }
+    public string TopologyName { get; }
 
     public Type MessageType { get; }
 
@@ -71,7 +71,7 @@ public class InboundEndpoint<TMessage> : InboundEndpoint
     public InboundEndpoint(
         string name,
         string transportName,
-        TopologyName topologyName,
+        string topologyName,
         Type handlerType,
         Type serializerType,
         string discriminator,

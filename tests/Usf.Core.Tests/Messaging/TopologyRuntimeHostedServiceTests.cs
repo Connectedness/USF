@@ -56,7 +56,7 @@ public sealed class TopologyRuntimeHostedServiceTests
             TopologyName = name;
         }
 
-        public TopologyName TopologyName { get; }
+        public string TopologyName { get; }
 
         public Task StartAsync(CancellationToken cancellationToken = default)
         {

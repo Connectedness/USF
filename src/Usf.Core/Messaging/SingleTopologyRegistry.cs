@@ -4,22 +4,22 @@ using System.Collections.Generic;
 namespace Usf.Core.Messaging;
 
 /// <summary>
-/// A registry that exposes exactly one topology under <see cref="TopologyName.Default" />. It is primarily useful
+/// A registry that exposes exactly one topology under <see cref="Topology.DefaultName" />. It is primarily useful
 /// for direct construction in tests and benchmarks where building a full service provider would be overkill.
 /// </summary>
 public sealed class SingleTopologyRegistry : ITopologyRegistry
 {
-    private readonly TopologyDefinition _topology;
+    private readonly Topology _topology;
 
-    public SingleTopologyRegistry(TopologyDefinition topology)
+    public SingleTopologyRegistry(Topology topology)
     {
         _topology = topology ?? throw new ArgumentNullException(nameof(topology));
-        Names = [TopologyName.Default];
+        Names = [Topology.DefaultName];
     }
 
-    public IReadOnlyCollection<TopologyName> Names { get; }
+    public IReadOnlyCollection<string> Names { get; }
 
-    public TopologyDefinition GetRequiredTopology(TopologyName name)
+    public Topology GetRequiredTopology(string name)
     {
         if (TryGetTopology(name, out var topology) && topology is not null)
         {
@@ -27,13 +27,13 @@ public sealed class SingleTopologyRegistry : ITopologyRegistry
         }
 
         throw new InvalidOperationException(
-            $"Topology '{name.Value}' is not registered. Registered topologies: {TopologyRegistrationCatalog.FormatNames(Names)}."
+            $"Topology '{name}' is not registered. Registered topologies: {TopologyRegistrationCatalog.FormatNames(Names)}."
         );
     }
 
-    public bool TryGetTopology(TopologyName name, out TopologyDefinition? topology)
+    public bool TryGetTopology(string name, out Topology? topology)
     {
-        if (name == TopologyName.Default)
+        if (string.Equals(name, Topology.DefaultName, StringComparison.Ordinal))
         {
             topology = _topology;
             return true;

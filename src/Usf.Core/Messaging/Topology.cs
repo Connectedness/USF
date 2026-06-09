@@ -1,60 +1,48 @@
 using System;
 using System.Collections.Frozen;
-using System.Collections.Generic;
 using System.Collections.Immutable;
-using System.Linq;
 using Usf.Core.Messaging.Errors;
 
 namespace Usf.Core.Messaging;
 
 /// <summary>
-/// The immutable Core topology definition. It stores outbound targets indexed by name and by associated message
-/// type, and inbound endpoint definitions indexed by name. Outbound targets and inbound endpoints stay
-/// independent entry types: the definition can list and resolve either, but publishing code only selects outbound
-/// targets while the inbound runtime owns inbound endpoints. A definition is built once during topology
-/// compilation and read on every publish and dispatch, so its lookups are backed by <see cref="FrozenDictionary{TKey,TValue}" />.
+/// The immutable base for a compiled transport topology. It stores outbound targets indexed by name and message
+/// type, and inbound endpoints indexed by name.
 /// </summary>
-public sealed class TopologyDefinition
+public abstract class Topology
 {
+    public const string DefaultName = "default";
+
     private readonly FrozenDictionary<string, InboundEndpoint> _endpointsByName;
     private readonly FrozenDictionary<Type, OutboundTarget> _targetsByMessageType;
     private readonly FrozenDictionary<string, OutboundTarget> _targetsByName;
 
-    public TopologyDefinition(
-        TopologyName topologyName,
-        IDictionary<Type, OutboundTarget> targetsByMessageType,
-        IDictionary<string, OutboundTarget> targetsByName,
-        IDictionary<string, InboundEndpoint> endpointsByName
-    )
+    protected Topology(string name, TopologyData data)
     {
-        if (targetsByMessageType is null)
+        if (string.IsNullOrWhiteSpace(name))
         {
-            throw new ArgumentNullException(nameof(targetsByMessageType));
+            throw new ArgumentException("The value cannot be null or whitespace.", nameof(name));
         }
 
-        if (targetsByName is null)
-        {
-            throw new ArgumentNullException(nameof(targetsByName));
-        }
-
-        if (endpointsByName is null)
-        {
-            throw new ArgumentNullException(nameof(endpointsByName));
-        }
-
-        TopologyName = topologyName;
-        _targetsByMessageType = targetsByMessageType.ToFrozenDictionary();
-        _targetsByName = targetsByName.ToFrozenDictionary(StringComparer.Ordinal);
-        _endpointsByName = endpointsByName.ToFrozenDictionary(StringComparer.Ordinal);
-        OutboundTargets = [.._targetsByMessageType.Values.Concat(_targetsByName.Values).Distinct()];
-        InboundEndpoints = [.._endpointsByName.Values];
+        Name = name;
+        _targetsByMessageType = data.TargetsByMessageType;
+        _targetsByName = data.TargetsByName;
+        _endpointsByName = data.EndpointsByName;
+        OutboundTargets = data.OutboundTargets;
+        InboundEndpoints = data.InboundEndpoints;
     }
 
-    public TopologyName TopologyName { get; }
+    public string Name { get; }
 
     public ImmutableArray<OutboundTarget> OutboundTargets { get; }
 
     public ImmutableArray<InboundEndpoint> InboundEndpoints { get; }
+
+    public bool IsEmpty => OutboundTargets.IsDefaultOrEmpty && InboundEndpoints.IsDefaultOrEmpty;
+
+    public bool IsOutboundOnly => !OutboundTargets.IsDefaultOrEmpty && InboundEndpoints.IsDefaultOrEmpty;
+
+    public bool IsInboundOnly => OutboundTargets.IsDefaultOrEmpty && !InboundEndpoints.IsDefaultOrEmpty;
 
     public OutboundTarget GetRequiredTarget(Type messageType)
     {

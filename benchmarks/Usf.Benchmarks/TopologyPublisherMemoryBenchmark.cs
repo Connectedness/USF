@@ -11,7 +11,7 @@ namespace Usf.Benchmarks;
 [MemoryDiagnoser]
 public class TopologyPublisherMemoryBenchmark
 {
-    private static readonly TopologyName NamedTopology = new ("benchmark");
+    private const string NamedTopology = "benchmark";
 
     private BenchmarkMessage _message = null!;
     private MessagePublisher _publisher = null!;
@@ -25,12 +25,7 @@ public class TopologyPublisherMemoryBenchmark
         var registry = contracts.Build();
         _target = new BenchmarkTarget(registry, NamedTopology);
         _publisher = new MessagePublisher(
-            new TopologyDefinition(
-                TopologyName.Default,
-                new Dictionary<Type, OutboundTarget>(),
-                new Dictionary<string, OutboundTarget>(StringComparer.Ordinal),
-                new Dictionary<string, InboundEndpoint>(StringComparer.Ordinal)
-            )
+            new BenchmarkTopology()
         );
         _message = new BenchmarkMessage("value");
     }
@@ -60,7 +55,7 @@ public class TopologyPublisherMemoryBenchmark
 
     private sealed class BenchmarkTarget : OutboundTarget<BenchmarkMessage>
     {
-        public BenchmarkTarget(IMessageContractRegistry messageContractRegistry, TopologyName topologyName)
+        public BenchmarkTarget(IMessageContractRegistry messageContractRegistry, string topologyName)
             : base("benchmark", "benchmark", new BenchmarkSerializer(), messageContractRegistry, topologyName) { }
 
         public override Task PublishSerializedAsync(
@@ -79,6 +74,18 @@ public class TopologyPublisherMemoryBenchmark
         {
             return Task.CompletedTask;
         }
+    }
+
+    private sealed class BenchmarkTopology : Topology
+    {
+        public BenchmarkTopology() : base(
+            DefaultName,
+            TopologyData.PrepareTopologyDataStructures(
+                new Dictionary<Type, OutboundTarget>(),
+                new Dictionary<string, OutboundTarget>(StringComparer.Ordinal),
+                new Dictionary<string, InboundEndpoint>(StringComparer.Ordinal)
+            )
+        ) { }
     }
 
     private sealed class BenchmarkSerializer : IMessageSerializer

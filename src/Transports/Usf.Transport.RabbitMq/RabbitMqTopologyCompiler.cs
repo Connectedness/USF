@@ -14,8 +14,8 @@ namespace Usf.Transport.RabbitMq;
 
 /// <summary>
 /// Validates a <see cref="RabbitMqTopologyConfiguration" /> and compiles it into a single
-/// <see cref="RabbitMqTopology" /> that owns one connection and projects both outbound targets and inbound
-/// endpoints onto one Core <see cref="TopologyDefinition" />.
+/// <see cref="RabbitMqTopology" /> that owns one connection and exposes both outbound targets and inbound
+/// endpoints through the Core <see cref="Topology" /> base.
 /// </summary>
 public sealed class RabbitMqTopologyCompiler
 {
@@ -45,7 +45,7 @@ public sealed class RabbitMqTopologyCompiler
     }
 
     public RabbitMqTopology Compile(
-        TopologyName topologyName,
+        string topologyName,
         RabbitMqTopologyConfiguration configuration,
         RabbitMqConnectionProvider connectionProvider
     )
@@ -88,10 +88,13 @@ public sealed class RabbitMqTopologyCompiler
         );
         channelSource.SetChannelBudget(worstCaseChannelCount, description);
         LogWorstCaseChannelCount(worstCaseChannelCount, description);
-        WarnWhenEmpty(topologyName, targets, endpoints);
-
-        return new RabbitMqTopology(
-            new TopologyDefinition(topologyName, defaultTargetsByMessageType, targetsByName, endpointsByName),
+        var topology = new RabbitMqTopology(
+            topologyName,
+            TopologyData.PrepareTopologyDataStructures(
+                defaultTargetsByMessageType,
+                targetsByName,
+                endpointsByName
+            ),
             effectiveMessageContracts,
             configuration.Exchanges,
             configuration.Queues,
@@ -107,6 +110,8 @@ public sealed class RabbitMqTopologyCompiler
             connectionProvider,
             channelSource
         );
+        WarnWhenEmpty(topology);
+        return topology;
     }
 
     private IMessageContractRegistry CreateEffectiveMessageContracts(RabbitMqTopologyConfiguration configuration)
@@ -124,7 +129,7 @@ public sealed class RabbitMqTopologyCompiler
         Dictionary<Type, OutboundTarget> DefaultTargetsByMessageType,
         Dictionary<string, OutboundTarget> TargetsByName
         ) CompileOutbound(
-            TopologyName topologyName,
+            string topologyName,
             RabbitMqTopologyConfiguration configuration,
             IMessageContractRegistry effectiveMessageContracts,
             RabbitMqChannelSource channelSource
@@ -270,7 +275,7 @@ public sealed class RabbitMqTopologyCompiler
 
     private OutboundTarget CreateTarget(
         RabbitMqOutboundTargetDefinition targetDefinition,
-        TopologyName topologyName,
+        string topologyName,
         IMessageContractRegistry messageContractRegistry,
         RabbitMqChannelGroup channelGroup,
         string exchangeName
@@ -291,7 +296,7 @@ public sealed class RabbitMqTopologyCompiler
         RabbitMqOutboundTargetDefinition targetDefinition,
         IMessageSerializer serializer,
         IMessageContractRegistry messageContractRegistry,
-        TopologyName topologyName,
+        string topologyName,
         RabbitMqChannelGroup channelGroup,
         string exchangeName
     )
@@ -374,7 +379,7 @@ public sealed class RabbitMqTopologyCompiler
         Dictionary<string, InboundEndpoint> EndpointsByName,
         Dictionary<InboundEndpointSelectionKey, RabbitMqInboundEndpoint> DispatchIndex
         ) CompileInbound(
-            TopologyName topologyName,
+            string topologyName,
             RabbitMqTopologyConfiguration configuration,
             IMessageContractRegistry effectiveMessageContracts
         )
@@ -481,7 +486,7 @@ public sealed class RabbitMqTopologyCompiler
 
     private static RabbitMqInboundEndpoint CreateEndpoint(
         RabbitMqInboundHandlerDefinition handlerDefinition,
-        TopologyName topologyName,
+        string topologyName,
         string endpointName,
         string discriminator,
         RabbitMqInboundChannelGroup channelGroup
@@ -496,7 +501,7 @@ public sealed class RabbitMqTopologyCompiler
 
     private static RabbitMqInboundEndpoint CreateEndpointCore<TMessage>(
         RabbitMqInboundHandlerDefinition handlerDefinition,
-        TopologyName topologyName,
+        string topologyName,
         string endpointName,
         string discriminator,
         RabbitMqInboundChannelGroup channelGroup
@@ -1317,20 +1322,16 @@ public sealed class RabbitMqTopologyCompiler
         );
     }
 
-    private void WarnWhenEmpty(
-        TopologyName topologyName,
-        IReadOnlyList<OutboundTarget> targets,
-        IReadOnlyList<RabbitMqInboundEndpoint> endpoints
-    )
+    private void WarnWhenEmpty(RabbitMqTopology topology)
     {
-        if (targets.Count > 0 || endpoints.Count > 0)
+        if (!topology.IsEmpty)
         {
             return;
         }
 
         _loggerFactory.CreateLogger(typeof(RabbitMqTopologyCompiler)).LogWarning(
             "RabbitMQ topology '{TopologyName}' is empty: it declares no outbound targets and no inbound endpoints",
-            topologyName.Value
+            topology.Name
         );
     }
 }

@@ -138,7 +138,7 @@ public sealed class RabbitMqPublishingIntegrationTests
             }
 
             var publisher = serviceProvider.GetRequiredService<IMessagePublisher>();
-            var targetRegistry = serviceProvider.GetRequiredService<TopologyDefinition>();
+            var targetRegistry = serviceProvider.GetRequiredService<Topology>();
             Activity? directProducerActivity = null;
             var directParentTraceId = default(ActivityTraceId);
             using var listener = new ActivityListener();
@@ -248,11 +248,11 @@ public sealed class RabbitMqPublishingIntegrationTests
             ExtractHeaderValue(headersMessage.BasicProperties.Headers!, "region").Should().Be("us");
 
             serviceProvider
-               .GetRequiredService<TopologyDefinition>()
+               .GetRequiredService<Topology>()
                .GetRequiredTarget<RabbitMqPublishMessage>().Name
                .Should().Be(typeof(RabbitMqPublishMessage).FullName);
             serviceProvider
-               .GetRequiredService<TopologyDefinition>()
+               .GetRequiredService<Topology>()
                .GetRequiredTarget<RabbitMqAuditMessage>().Name
                .Should().Be(typeof(RabbitMqAuditMessage).FullName);
             targetRegistry.GetRequiredTarget("topic-target").Should().NotBeNull();
@@ -275,8 +275,8 @@ public sealed class RabbitMqPublishingIntegrationTests
 
         try
         {
-            TopologyName legacy = new ("legacy");
-            TopologyName modern = new ("modern");
+            const string legacy = "legacy";
+            const string modern = "modern";
             var services = new ServiceCollection();
             services
                .AddUsf()
@@ -427,7 +427,7 @@ public sealed class RabbitMqPublishingIntegrationTests
 
             var publisher = serviceProvider.GetRequiredService<IMessagePublisher>();
             var target = serviceProvider
-               .GetRequiredService<TopologyDefinition>()
+               .GetRequiredService<Topology>()
                .GetRequiredTarget<RabbitMqPublishMessage>();
 
             // A payload that is deliberately not the JSON the serializer would produce proving USF
