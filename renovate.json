@@ -11,6 +11,13 @@
   },
   "packageRules": [
     {
+      "description": "Restore old NuGet update behavior for bare versions",
+      "matchManagers": [
+        "nuget"
+      ],
+      "rangeStrategy": "bump"
+    },
+    {
       "matchPackageNames": [
         "FluentAssertions"
       ],
