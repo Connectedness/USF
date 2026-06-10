@@ -2,5 +2,59 @@
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
     "config:recommended"
+  ],
+  "addLabels": [
+    "renovate"
+  ],
+  "packageRules": [
+    {
+      "matchPackageNames": [
+        "FluentAssertions"
+      ],
+      "enabled": false
+    },
+    {
+      "groupName": "Test SDK/MTP",
+      "matchPackageNames": [
+        "Microsoft.NET.Test.Sdk",
+        "Microsoft.TestPlatform.TestHost",
+        "Microsoft.Testing.Platform",
+        "Microsoft.Testing.Extensions.CodeCoverage"
+      ]
+    },
+    {
+      "groupName": "xunit",
+      "matchPackageNames": [
+        "xunit.v3.mtp-v2",
+        "xunit.runner.visualstudio"
+      ]
+    },
+    {
+      "groupName": "RabbitMQ",
+      "matchPackageNames": [
+        "RabbitMQ.Client",
+        "Testcontainers.RabbitMq"
+      ]
+    },
+    {
+      "groupName": "GitHub Actions",
+      "matchManagers": [
+        "github-actions"
+      ]
+    }
+  ],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "Update the dotnet-reportgenerator-globaltool version pinned in CI workflows",
+      "managerFilePatterns": [
+        "/^\\.github/workflows/.+\\.ya?ml$/"
+      ],
+      "matchStrings": [
+        "dotnet-reportgenerator-globaltool\\s+--version\\s+(?<currentValue>\\S+)"
+      ],
+      "depNameTemplate": "dotnet-reportgenerator-globaltool",
+      "datasourceTemplate": "nuget"
+    }
   ]
 }
