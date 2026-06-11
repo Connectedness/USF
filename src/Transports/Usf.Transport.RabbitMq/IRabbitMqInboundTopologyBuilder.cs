@@ -8,7 +8,7 @@ namespace Usf.Transport.RabbitMq;
 /// <see cref="IRabbitMqTopologyBuilder{TSelf}" />, this builder exposes consumers, consumer channel groups,
 /// the inbound pipeline, and the shutdown timeout — but no publishing configuration, so a topology
 /// configured through this interface cannot accidentally share its connection with publishers. Used by
-/// <see cref="RabbitMqTransportModule.AddRabbitMqInboundTopology(UsfBuilder, System.Action{Usf.Transport.RabbitMq.IRabbitMqInboundTopologyBuilder}(Usf.Transport.RabbitMq.IRabbitMqInboundTopologyBuilder))" />
+/// <see cref="RabbitMqTransportModule.AddRabbitMqInboundTopology(UsfBuilder, Action{IRabbitMqInboundTopologyBuilder})" />
 /// .
 /// </summary>
 public interface IRabbitMqInboundTopologyBuilder : IRabbitMqTopologyBuilder<IRabbitMqInboundTopologyBuilder>

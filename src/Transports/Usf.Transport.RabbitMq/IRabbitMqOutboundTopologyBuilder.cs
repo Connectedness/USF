@@ -9,7 +9,7 @@ namespace Usf.Transport.RabbitMq;
 /// <see cref="IRabbitMqTopologyBuilder{TSelf}" />, this builder exposes addresses, outbound targets,
 /// publisher channel groups, and publisher-confirm defaults — but no consumer configuration, so a topology
 /// configured through this interface cannot accidentally share its connection with consumers. Used by
-/// <see cref="RabbitMqTransportModule.AddRabbitMqOutboundTopology(UsfBuilder, System.Action{Usf.Transport.RabbitMq.IRabbitMqOutboundTopologyBuilder}(Usf.Transport.RabbitMq.IRabbitMqOutboundTopologyBuilder))" />
+/// <see cref="RabbitMqTransportModule.AddRabbitMqOutboundTopology(UsfBuilder, Action{IRabbitMqOutboundTopologyBuilder})" />
 /// .
 /// </summary>
 public interface IRabbitMqOutboundTopologyBuilder : IRabbitMqTopologyBuilder<IRabbitMqOutboundTopologyBuilder>

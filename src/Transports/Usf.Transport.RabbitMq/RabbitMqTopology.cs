@@ -16,8 +16,8 @@ namespace Usf.Transport.RabbitMq;
 /// connection provider, and the channel source. A topology owns exactly one
 /// <see cref="RabbitMqConnectionProvider" />; register separate topology instances when separate publisher and
 /// consumer connections are wanted, preferably via
-/// <see cref="RabbitMqTransportModule.AddRabbitMqOutboundTopology(UsfBuilder, System.Action{Usf.Transport.RabbitMq.IRabbitMqOutboundTopologyBuilder}(Usf.Transport.RabbitMq.IRabbitMqOutboundTopologyBuilder))" />
-/// and <see cref="RabbitMqTransportModule.AddRabbitMqInboundTopology(UsfBuilder, System.Action{Usf.Transport.RabbitMq.IRabbitMqInboundTopologyBuilder}(Usf.Transport.RabbitMq.IRabbitMqInboundTopologyBuilder))" />.
+/// <see cref="RabbitMqTransportModule.AddRabbitMqOutboundTopology(UsfBuilder, Action{IRabbitMqOutboundTopologyBuilder})" />
+/// and <see cref="RabbitMqTransportModule.AddRabbitMqInboundTopology(UsfBuilder, Action{IRabbitMqInboundTopologyBuilder})" />.
 /// </summary>
 public sealed class RabbitMqTopology : Topology, IAsyncDisposable, IDisposable
 {
