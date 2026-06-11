@@ -14,10 +14,10 @@ using Xunit;
 
 namespace Usf.Transport.RabbitMq.Tests.Integration;
 
-public sealed class RabbitMqInboundIntegrationTests
+public sealed class RabbitMqDedicatedTopologiesIntegrationTests
 {
     [Fact]
-    public async Task InboundConsumer_ConsumesPublishedCloudEventEndToEnd()
+    public async Task DedicatedOutboundAndInboundTopologies_PublishAndConsumeAcrossTwoConnections()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var container = new RabbitMqBuilder("public.ecr.aws/docker/library/rabbitmq:3.13-management").Build();
@@ -31,32 +31,40 @@ public sealed class RabbitMqInboundIntegrationTests
             services.AddScoped<IMessageHandler<RabbitMqPublishMessage>, RecordingPublishMessageHandler>();
             services
                .AddTestCloudEvents()
-               .AddRabbitMqTopology(
-                    builder =>
-                    {
-                        builder.UseConnectionFactory(
+               .AddRabbitMqOutboundTopology(
+                    outbound => outbound
+                       .UseConnectionFactory(
                             _ => new ConnectionFactory
                             {
                                 Uri = new Uri(container.GetConnectionString())
                             }
-                        );
-                        builder.Exchange("inbound-events", ExchangeType.Direct);
-                        builder.Address("inbound-events-address", "inbound-events");
-                        builder.Queue("inbound-events-queue");
-                        builder.QueueBinding("inbound-events", "inbound-events-queue", "published");
-                        builder.Publish<RabbitMqPublishMessage>(
+                        )
+                       .Exchange("inbound-events", ExchangeType.Direct)
+                       .Address("inbound-events-address", "inbound-events")
+                       .Publish<RabbitMqPublishMessage>(
                             target => target
                                .ToDirectAddress("inbound-events-address", "published")
                                .WithSerializer<CloudEventMessageSerializer>()
-                        );
-                        builder.Consume(
+                        )
+                )
+               .AddRabbitMqInboundTopology(
+                    inbound => inbound
+                       .UseConnectionFactory(
+                            _ => new ConnectionFactory
+                            {
+                                Uri = new Uri(container.GetConnectionString())
+                            }
+                        )
+                       .Exchange("inbound-events", ExchangeType.Direct)
+                       .Queue("inbound-events-queue")
+                       .QueueBinding("inbound-events", "inbound-events-queue", "published")
+                       .Consume(
                             "inbound-events-queue",
                             endpoint => endpoint
                                .PrefetchCount(1)
                                .Concurrency(1)
                                .Handle<RabbitMqPublishMessage, RecordingPublishMessageHandler>()
-                        );
-                    }
+                        )
                 );
 
             await using var serviceProvider = services.BuildServiceProvider();
@@ -80,6 +88,15 @@ public sealed class RabbitMqInboundIntegrationTests
 
                 consumed.Id.Should().Be(42);
                 consumed.Name.Should().Be("consumed");
+
+                var outboundTopology =
+                    serviceProvider.GetRequiredKeyedService<RabbitMqTopology>(Topology.DefaultName);
+                var inboundTopology =
+                    serviceProvider.GetRequiredKeyedService<RabbitMqTopology>(RabbitMqTopology.DefaultInboundName);
+                var outboundConnection = await outboundTopology.GetConnectionAsync(cancellationToken);
+                var inboundConnection = await inboundTopology.GetConnectionAsync(cancellationToken);
+
+                outboundConnection.Should().NotBeSameAs(inboundConnection);
             }
             finally
             {

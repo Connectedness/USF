@@ -15,9 +15,14 @@ namespace Usf.Transport.RabbitMq;
 /// overload, and publisher-confirm defaults), and inbound consumer configuration
 /// (<see cref="Consume" />, the inbound <see cref="ChannelGroup(string,int,ushort,ushort)" /> overload,
 /// <see cref="ConfigureInboundPipeline" />, <see cref="UseDeserializationMiddleware{TMiddleware}" />, and
-/// <see cref="WithShutdownTimeout" />).
+/// <see cref="WithShutdownTimeout" />). The full surface is available through
+/// <see cref="RabbitMqTransportModule.AddRabbitMqTopology(UsfBuilder, Action{RabbitMqTopologyBuilder})" />;
+/// <see cref="RabbitMqTransportModule.AddRabbitMqOutboundTopology(UsfBuilder, Action{IRabbitMqOutboundTopologyBuilder})" />
+/// and <see cref="RabbitMqTransportModule.AddRabbitMqInboundTopology(UsfBuilder, Action{IRabbitMqInboundTopologyBuilder})" />
+/// hand out this builder through the direction-specific interfaces to constrain the configuration surface
+/// at compile time.
 /// </summary>
-public sealed class RabbitMqTopologyBuilder
+public sealed class RabbitMqTopologyBuilder : IRabbitMqOutboundTopologyBuilder, IRabbitMqInboundTopologyBuilder
 {
     private readonly List<RabbitMqAddressDefinition> _addressDefinitions = [];
     private readonly List<RabbitMqBindingDefinition> _bindingDefinitions = [];
@@ -37,14 +42,137 @@ public sealed class RabbitMqTopologyBuilder
     private MessageContractRegistryBuilder? _messageContracts;
     private TimeSpan _shutdownTimeout = TimeSpan.FromSeconds(30);
 
-    /// <summary>
-    /// Configures the RabbitMQ connection factory used when the topology first opens its connection.
-    /// </summary>
-    /// <remarks>
-    /// <see cref="ConnectionFactory.AutomaticRecoveryEnabled" /> must be <see langword="true" />. When the topology
-    /// contains inbound consumers, <see cref="ConnectionFactory.TopologyRecoveryEnabled" /> must also be
-    /// <see langword="true" /> so RabbitMQ.Client can recover consumer subscriptions.
-    /// </remarks>
+    IRabbitMqInboundTopologyBuilder IRabbitMqTopologyBuilder<IRabbitMqInboundTopologyBuilder>.UseConnectionFactory(
+        ConnectionFactory connectionFactory
+    ) => UseConnectionFactory(connectionFactory);
+
+    IRabbitMqInboundTopologyBuilder IRabbitMqTopologyBuilder<IRabbitMqInboundTopologyBuilder>.UseConnectionFactory(
+        Func<IServiceProvider, ConnectionFactory> createConnectionFactory
+    ) => UseConnectionFactory(createConnectionFactory);
+
+    IRabbitMqInboundTopologyBuilder IRabbitMqTopologyBuilder<IRabbitMqInboundTopologyBuilder>.Exchange(
+        string name,
+        string type,
+        Action<RabbitMqExchangeBuilder>? configure
+    ) => Exchange(name, type, configure);
+
+    IRabbitMqInboundTopologyBuilder IRabbitMqTopologyBuilder<IRabbitMqInboundTopologyBuilder>.Queue(
+        string name,
+        Action<RabbitMqQueueBuilder>? configure
+    ) => Queue(name, configure);
+
+    IRabbitMqInboundTopologyBuilder IRabbitMqTopologyBuilder<IRabbitMqInboundTopologyBuilder>.QueueBinding(
+        string exchangeName,
+        string queueName,
+        string routingKey,
+        Action<RabbitMqQueueBindingBuilder>? configure
+    ) => QueueBinding(exchangeName, queueName, routingKey, configure);
+
+    IRabbitMqInboundTopologyBuilder IRabbitMqTopologyBuilder<IRabbitMqInboundTopologyBuilder>.ExchangeBinding(
+        string sourceExchangeName,
+        string destinationExchangeName,
+        string routingKey,
+        Action<RabbitMqExchangeBindingBuilder>? configure
+    ) => ExchangeBinding(sourceExchangeName, destinationExchangeName, routingKey, configure);
+
+    IRabbitMqInboundTopologyBuilder IRabbitMqTopologyBuilder<IRabbitMqInboundTopologyBuilder>.MapMessageContracts(
+        Action<MessageContractRegistryBuilder> configure
+    ) => MapMessageContracts(configure);
+
+    IRabbitMqInboundTopologyBuilder IRabbitMqInboundTopologyBuilder.ChannelGroup(
+        string name,
+        int maximumChannelCount,
+        ushort prefetchCount,
+        ushort consumerDispatchConcurrency
+    ) => ChannelGroup(name, maximumChannelCount, prefetchCount, consumerDispatchConcurrency);
+
+    IRabbitMqInboundTopologyBuilder IRabbitMqInboundTopologyBuilder.Consume(
+        string queueName,
+        Action<RabbitMqInboundEndpointBuilder> configure
+    ) => Consume(queueName, configure);
+
+    IRabbitMqInboundTopologyBuilder IRabbitMqInboundTopologyBuilder.ConfigureInboundPipeline(
+        Action<MessagePipelineBuilder> configure
+    ) => ConfigureInboundPipeline(configure);
+
+    IRabbitMqInboundTopologyBuilder IRabbitMqInboundTopologyBuilder.UseDeserializationMiddleware<TMiddleware>() =>
+        UseDeserializationMiddleware<TMiddleware>();
+
+    IRabbitMqInboundTopologyBuilder IRabbitMqInboundTopologyBuilder.WithShutdownTimeout(
+        TimeSpan shutdownTimeout
+    ) => WithShutdownTimeout(shutdownTimeout);
+
+    // Explicit bridges for IRabbitMqOutboundTopologyBuilder and IRabbitMqInboundTopologyBuilder. C# does not
+    // allow covariant return types on interface implementations, so the public members above (returning
+    // RabbitMqTopologyBuilder) cannot satisfy the interfaces implicitly.
+
+    IRabbitMqOutboundTopologyBuilder IRabbitMqTopologyBuilder<IRabbitMqOutboundTopologyBuilder>.UseConnectionFactory(
+        ConnectionFactory connectionFactory
+    ) => UseConnectionFactory(connectionFactory);
+
+    IRabbitMqOutboundTopologyBuilder IRabbitMqTopologyBuilder<IRabbitMqOutboundTopologyBuilder>.UseConnectionFactory(
+        Func<IServiceProvider, ConnectionFactory> createConnectionFactory
+    ) => UseConnectionFactory(createConnectionFactory);
+
+    IRabbitMqOutboundTopologyBuilder IRabbitMqTopologyBuilder<IRabbitMqOutboundTopologyBuilder>.Exchange(
+        string name,
+        string type,
+        Action<RabbitMqExchangeBuilder>? configure
+    ) => Exchange(name, type, configure);
+
+    IRabbitMqOutboundTopologyBuilder IRabbitMqTopologyBuilder<IRabbitMqOutboundTopologyBuilder>.Queue(
+        string name,
+        Action<RabbitMqQueueBuilder>? configure
+    ) => Queue(name, configure);
+
+    IRabbitMqOutboundTopologyBuilder IRabbitMqTopologyBuilder<IRabbitMqOutboundTopologyBuilder>.QueueBinding(
+        string exchangeName,
+        string queueName,
+        string routingKey,
+        Action<RabbitMqQueueBindingBuilder>? configure
+    ) => QueueBinding(exchangeName, queueName, routingKey, configure);
+
+    IRabbitMqOutboundTopologyBuilder IRabbitMqTopologyBuilder<IRabbitMqOutboundTopologyBuilder>.ExchangeBinding(
+        string sourceExchangeName,
+        string destinationExchangeName,
+        string routingKey,
+        Action<RabbitMqExchangeBindingBuilder>? configure
+    ) => ExchangeBinding(sourceExchangeName, destinationExchangeName, routingKey, configure);
+
+    IRabbitMqOutboundTopologyBuilder IRabbitMqTopologyBuilder<IRabbitMqOutboundTopologyBuilder>.MapMessageContracts(
+        Action<MessageContractRegistryBuilder> configure
+    ) => MapMessageContracts(configure);
+
+    IRabbitMqOutboundTopologyBuilder IRabbitMqOutboundTopologyBuilder.Address(
+        string name,
+        string exchangeName
+    ) => Address(name, exchangeName);
+
+    IRabbitMqOutboundTopologyBuilder IRabbitMqOutboundTopologyBuilder.Publish<TMessage>(
+        Action<RabbitMqOutboundTargetBuilder<TMessage>> configure
+    ) => Publish(configure);
+
+    IRabbitMqOutboundTopologyBuilder IRabbitMqOutboundTopologyBuilder.PublishNamed<TMessage>(
+        string targetName,
+        Action<RabbitMqOutboundTargetBuilder<TMessage>> configure
+    ) => PublishNamed(targetName, configure);
+
+    IRabbitMqOutboundTopologyBuilder IRabbitMqOutboundTopologyBuilder.ChannelGroup(
+        string name,
+        int maximumChannelCount,
+        RabbitMqPublisherConfirmMode? publisherConfirmMode,
+        TimeSpan? publisherConfirmTimeout
+    ) => ChannelGroup(name, maximumChannelCount, publisherConfirmMode, publisherConfirmTimeout);
+
+    IRabbitMqOutboundTopologyBuilder IRabbitMqOutboundTopologyBuilder.WithDefaultPublisherConfirmMode(
+        RabbitMqPublisherConfirmMode publisherConfirmMode
+    ) => WithDefaultPublisherConfirmMode(publisherConfirmMode);
+
+    IRabbitMqOutboundTopologyBuilder IRabbitMqOutboundTopologyBuilder.WithDefaultPublisherConfirmTimeout(
+        TimeSpan publisherConfirmTimeout
+    ) => WithDefaultPublisherConfirmTimeout(publisherConfirmTimeout);
+
+    /// <inheritdoc cref="IRabbitMqTopologyBuilder{TSelf}.UseConnectionFactory(ConnectionFactory)" />
     public RabbitMqTopologyBuilder UseConnectionFactory(ConnectionFactory connectionFactory)
     {
         if (connectionFactory is null)
@@ -67,6 +195,7 @@ public sealed class RabbitMqTopologyBuilder
         return this;
     }
 
+    /// <inheritdoc cref="IRabbitMqTopologyBuilder{TSelf}.Exchange" />
     public RabbitMqTopologyBuilder Exchange(
         string name,
         string type,
@@ -79,6 +208,7 @@ public sealed class RabbitMqTopologyBuilder
         return this;
     }
 
+    /// <inheritdoc cref="IRabbitMqTopologyBuilder{TSelf}.Queue" />
     public RabbitMqTopologyBuilder Queue(string name, Action<RabbitMqQueueBuilder>? configure = null)
     {
         RabbitMqQueueBuilder builder = new (name);
@@ -87,6 +217,7 @@ public sealed class RabbitMqTopologyBuilder
         return this;
     }
 
+    /// <inheritdoc cref="IRabbitMqTopologyBuilder{TSelf}.QueueBinding" />
     public RabbitMqTopologyBuilder QueueBinding(
         string exchangeName,
         string queueName,
@@ -100,6 +231,7 @@ public sealed class RabbitMqTopologyBuilder
         return this;
     }
 
+    /// <inheritdoc cref="IRabbitMqTopologyBuilder{TSelf}.ExchangeBinding" />
     public RabbitMqTopologyBuilder ExchangeBinding(
         string sourceExchangeName,
         string destinationExchangeName,
@@ -113,6 +245,7 @@ public sealed class RabbitMqTopologyBuilder
         return this;
     }
 
+    /// <inheritdoc cref="IRabbitMqTopologyBuilder{TSelf}.MapMessageContracts" />
     public RabbitMqTopologyBuilder MapMessageContracts(Action<MessageContractRegistryBuilder> configure)
     {
         if (configure is null)
@@ -125,6 +258,7 @@ public sealed class RabbitMqTopologyBuilder
         return this;
     }
 
+    /// <inheritdoc cref="IRabbitMqOutboundTopologyBuilder.Address" />
     public RabbitMqTopologyBuilder Address(string name, string exchangeName)
     {
         _addressDefinitions.Add(
@@ -136,6 +270,7 @@ public sealed class RabbitMqTopologyBuilder
         return this;
     }
 
+    /// <inheritdoc cref="IRabbitMqOutboundTopologyBuilder.WithDefaultPublisherConfirmMode" />
     public RabbitMqTopologyBuilder WithDefaultPublisherConfirmMode(
         RabbitMqPublisherConfirmMode publisherConfirmMode
     )
@@ -145,6 +280,7 @@ public sealed class RabbitMqTopologyBuilder
         return this;
     }
 
+    /// <inheritdoc cref="IRabbitMqOutboundTopologyBuilder.WithDefaultPublisherConfirmTimeout" />
     public RabbitMqTopologyBuilder WithDefaultPublisherConfirmTimeout(TimeSpan publisherConfirmTimeout)
     {
         ValidatePublisherConfirmTimeout(publisherConfirmTimeout, nameof(publisherConfirmTimeout));
@@ -152,9 +288,7 @@ public sealed class RabbitMqTopologyBuilder
         return this;
     }
 
-    /// <summary>
-    /// Configures an outbound publisher channel group.
-    /// </summary>
+    /// <inheritdoc cref="IRabbitMqOutboundTopologyBuilder.ChannelGroup" />
     public RabbitMqTopologyBuilder ChannelGroup(
         string name,
         int maximumChannelCount,
@@ -205,9 +339,7 @@ public sealed class RabbitMqTopologyBuilder
         return this;
     }
 
-    /// <summary>
-    /// Configures an inbound consumer channel group.
-    /// </summary>
+    /// <inheritdoc cref="IRabbitMqInboundTopologyBuilder.ChannelGroup" />
     public RabbitMqTopologyBuilder ChannelGroup(
         string name,
         int maximumChannelCount,
@@ -266,6 +398,7 @@ public sealed class RabbitMqTopologyBuilder
         return this;
     }
 
+    /// <inheritdoc cref="IRabbitMqOutboundTopologyBuilder.Publish{TMessage}" />
     public RabbitMqTopologyBuilder Publish<TMessage>(
         Action<RabbitMqOutboundTargetBuilder<TMessage>> configure
     )
@@ -273,6 +406,7 @@ public sealed class RabbitMqTopologyBuilder
         return PublishCore(null, configure);
     }
 
+    /// <inheritdoc cref="IRabbitMqOutboundTopologyBuilder.PublishNamed{TMessage}" />
     public RabbitMqTopologyBuilder PublishNamed<TMessage>(
         string targetName,
         Action<RabbitMqOutboundTargetBuilder<TMessage>> configure
@@ -281,6 +415,7 @@ public sealed class RabbitMqTopologyBuilder
         return PublishCore(RequireText(targetName, nameof(targetName)), configure);
     }
 
+    /// <inheritdoc cref="IRabbitMqInboundTopologyBuilder.Consume" />
     public RabbitMqTopologyBuilder Consume(
         string queueName,
         Action<RabbitMqInboundEndpointBuilder> configure
@@ -297,6 +432,7 @@ public sealed class RabbitMqTopologyBuilder
         return this;
     }
 
+    /// <inheritdoc cref="IRabbitMqInboundTopologyBuilder.ConfigureInboundPipeline" />
     public RabbitMqTopologyBuilder ConfigureInboundPipeline(Action<MessagePipelineBuilder> configure)
     {
         if (configure is null)
@@ -308,6 +444,7 @@ public sealed class RabbitMqTopologyBuilder
         return this;
     }
 
+    /// <inheritdoc cref="IRabbitMqInboundTopologyBuilder.UseDeserializationMiddleware{TMiddleware}" />
     public RabbitMqTopologyBuilder UseDeserializationMiddleware<TMiddleware>()
         where TMiddleware : class, IMessageMiddleware
     {
@@ -315,6 +452,7 @@ public sealed class RabbitMqTopologyBuilder
         return this;
     }
 
+    /// <inheritdoc cref="IRabbitMqInboundTopologyBuilder.WithShutdownTimeout" />
     public RabbitMqTopologyBuilder WithShutdownTimeout(TimeSpan shutdownTimeout)
     {
         if (shutdownTimeout <= TimeSpan.Zero)

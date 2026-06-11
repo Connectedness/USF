@@ -13,6 +13,17 @@ namespace Usf.Transport.RabbitMq;
 
 public static class RabbitMqTransportModule
 {
+    /// <summary>
+    /// Registers a unified RabbitMQ topology that may contain both outbound targets and inbound consumers and
+    /// therefore shares a single connection between publishers and consumers. The RabbitMQ production checklist
+    /// (https://www.rabbitmq.com/docs/production-checklist#apps-connection-management) recommends dedicated
+    /// connections for publishing and consuming — when a publishing connection is throttled by broker flow
+    /// control, a shared connection also stalls consumer acknowledgements, precisely when the broker needs
+    /// consumers to drain queues. Prefer
+    /// <see cref="AddRabbitMqOutboundTopology(UsfBuilder, Action{IRabbitMqOutboundTopologyBuilder})" /> plus
+    /// <see cref="AddRabbitMqInboundTopology(UsfBuilder, Action{IRabbitMqInboundTopologyBuilder})" /> for
+    /// production services; a single shared connection is appropriate for low-traffic services and tests.
+    /// </summary>
     public static UsfBuilder AddRabbitMqTopology(
         this UsfBuilder builder,
         Action<RabbitMqTopologyBuilder> configure
@@ -21,6 +32,7 @@ public static class RabbitMqTransportModule
         return builder.AddRabbitMqTopology(Topology.DefaultName, configure);
     }
 
+    /// <inheritdoc cref="AddRabbitMqTopology(UsfBuilder, Action{RabbitMqTopologyBuilder})" />
     public static UsfBuilder AddRabbitMqTopology(
         this UsfBuilder builder,
         string topologyName,
@@ -39,7 +51,99 @@ public static class RabbitMqTransportModule
 
         var topologyBuilder = new RabbitMqTopologyBuilder();
         configure(topologyBuilder);
-        var configuration = topologyBuilder.Build();
+        return AddRabbitMqTopologyCore(builder, topologyName, topologyBuilder.Build());
+    }
+
+    /// <summary>
+    /// Registers a publish-only RabbitMQ topology with a dedicated connection, following the RabbitMQ
+    /// production checklist recommendation to separate publishing and consuming connections
+    /// (https://www.rabbitmq.com/docs/production-checklist#apps-connection-management): when a publishing
+    /// connection is throttled by broker flow control, a shared connection would also stall consumer
+    /// acknowledgements. Pair it with
+    /// <see cref="AddRabbitMqInboundTopology(UsfBuilder, Action{IRabbitMqInboundTopologyBuilder})" /> for the
+    /// consuming side; both default names (<see cref="Topology.DefaultName" /> and
+    /// <see cref="RabbitMqTopology.DefaultInboundName" />) coexist without a collision. Use
+    /// <see cref="AddRabbitMqTopology(UsfBuilder, Action{RabbitMqTopologyBuilder})" /> instead when a single
+    /// shared connection is appropriate (low-traffic services, tests).
+    /// </summary>
+    public static UsfBuilder AddRabbitMqOutboundTopology(
+        this UsfBuilder builder,
+        Action<IRabbitMqOutboundTopologyBuilder> configure
+    )
+    {
+        return builder.AddRabbitMqOutboundTopology(Topology.DefaultName, configure);
+    }
+
+    /// <inheritdoc cref="AddRabbitMqOutboundTopology(UsfBuilder, Action{IRabbitMqOutboundTopologyBuilder})" />
+    public static UsfBuilder AddRabbitMqOutboundTopology(
+        this UsfBuilder builder,
+        string topologyName,
+        Action<IRabbitMqOutboundTopologyBuilder> configure
+    )
+    {
+        if (builder is null)
+        {
+            throw new ArgumentNullException(nameof(builder));
+        }
+
+        if (configure is null)
+        {
+            throw new ArgumentNullException(nameof(configure));
+        }
+
+        var topologyBuilder = new RabbitMqTopologyBuilder();
+        configure(topologyBuilder);
+        return AddRabbitMqTopologyCore(builder, topologyName, topologyBuilder.Build());
+    }
+
+    /// <summary>
+    /// Registers a consume-only RabbitMQ topology with a dedicated connection, following the RabbitMQ
+    /// production checklist recommendation to separate publishing and consuming connections
+    /// (https://www.rabbitmq.com/docs/production-checklist#apps-connection-management): when a publishing
+    /// connection is throttled by broker flow control, a shared connection would also stall consumer
+    /// acknowledgements. The topology name defaults to <see cref="RabbitMqTopology.DefaultInboundName" /> so
+    /// that it can be paired with
+    /// <see cref="AddRabbitMqOutboundTopology(UsfBuilder, Action{IRabbitMqOutboundTopologyBuilder})" /> (which
+    /// defaults to <see cref="Topology.DefaultName" />) without a collision. Use
+    /// <see cref="AddRabbitMqTopology(UsfBuilder, Action{RabbitMqTopologyBuilder})" /> instead when a single
+    /// shared connection is appropriate (low-traffic services, tests).
+    /// </summary>
+    public static UsfBuilder AddRabbitMqInboundTopology(
+        this UsfBuilder builder,
+        Action<IRabbitMqInboundTopologyBuilder> configure
+    )
+    {
+        return builder.AddRabbitMqInboundTopology(RabbitMqTopology.DefaultInboundName, configure);
+    }
+
+    /// <inheritdoc cref="AddRabbitMqInboundTopology(UsfBuilder, Action{IRabbitMqInboundTopologyBuilder})" />
+    public static UsfBuilder AddRabbitMqInboundTopology(
+        this UsfBuilder builder,
+        string topologyName,
+        Action<IRabbitMqInboundTopologyBuilder> configure
+    )
+    {
+        if (builder is null)
+        {
+            throw new ArgumentNullException(nameof(builder));
+        }
+
+        if (configure is null)
+        {
+            throw new ArgumentNullException(nameof(configure));
+        }
+
+        var topologyBuilder = new RabbitMqTopologyBuilder();
+        configure(topologyBuilder);
+        return AddRabbitMqTopologyCore(builder, topologyName, topologyBuilder.Build());
+    }
+
+    private static UsfBuilder AddRabbitMqTopologyCore(
+        UsfBuilder builder,
+        string topologyName,
+        RabbitMqTopologyConfiguration configuration
+    )
+    {
         var services = builder.Services;
         builder.Topologies.Add(topologyName);
 
@@ -94,50 +198,6 @@ public static class RabbitMqTransportModule
         }
 
         return builder;
-    }
-
-    /// <summary>
-    /// Compatibility wrapper that registers a publish-oriented RabbitMQ topology. It compiles to the same unified
-    /// <see cref="RabbitMqTopology" /> as <see cref="AddRabbitMqTopology(UsfBuilder, Action{RabbitMqTopologyBuilder})" />.
-    /// </summary>
-    public static UsfBuilder AddRabbitMqOutboundTopology(
-        this UsfBuilder builder,
-        Action<RabbitMqTopologyBuilder> configure
-    )
-    {
-        return builder.AddRabbitMqTopology(Topology.DefaultName, configure);
-    }
-
-    /// <inheritdoc cref="AddRabbitMqOutboundTopology(UsfBuilder, Action{RabbitMqTopologyBuilder})" />
-    public static UsfBuilder AddRabbitMqOutboundTopology(
-        this UsfBuilder builder,
-        string topologyName,
-        Action<RabbitMqTopologyBuilder> configure
-    )
-    {
-        return builder.AddRabbitMqTopology(topologyName, configure);
-    }
-
-    /// <summary>
-    /// Compatibility wrapper that registers a consume-oriented RabbitMQ topology. It compiles to the same unified
-    /// <see cref="RabbitMqTopology" /> as <see cref="AddRabbitMqTopology(UsfBuilder, Action{RabbitMqTopologyBuilder})" />.
-    /// </summary>
-    public static UsfBuilder AddRabbitMqInboundTopology(
-        this UsfBuilder builder,
-        Action<RabbitMqTopologyBuilder> configure
-    )
-    {
-        return builder.AddRabbitMqTopology(Topology.DefaultName, configure);
-    }
-
-    /// <inheritdoc cref="AddRabbitMqInboundTopology(UsfBuilder, Action{RabbitMqTopologyBuilder})" />
-    public static UsfBuilder AddRabbitMqInboundTopology(
-        this UsfBuilder builder,
-        string topologyName,
-        Action<RabbitMqTopologyBuilder> configure
-    )
-    {
-        return builder.AddRabbitMqTopology(topologyName, configure);
     }
 
     private static Task<IConnection> CreateConnectionAsync(

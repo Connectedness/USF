@@ -15,10 +15,22 @@ namespace Usf.Transport.RabbitMq;
 /// channel groups, outbound targets, inbound endpoints, the inbound pipeline, the shutdown timeout, the
 /// connection provider, and the channel source. A topology owns exactly one
 /// <see cref="RabbitMqConnectionProvider" />; register separate topology instances when separate publisher and
-/// consumer connections are wanted.
+/// consumer connections are wanted, preferably via
+/// <see cref="RabbitMqTransportModule.AddRabbitMqOutboundTopology(UsfBuilder, System.Action{Usf.Transport.RabbitMq.IRabbitMqOutboundTopologyBuilder}(Usf.Transport.RabbitMq.IRabbitMqOutboundTopologyBuilder))" />
+/// and <see cref="RabbitMqTransportModule.AddRabbitMqInboundTopology(UsfBuilder, System.Action{Usf.Transport.RabbitMq.IRabbitMqInboundTopologyBuilder}(Usf.Transport.RabbitMq.IRabbitMqInboundTopologyBuilder))" />.
 /// </summary>
 public sealed class RabbitMqTopology : Topology, IAsyncDisposable, IDisposable
 {
+    /// <summary>
+    /// The default name used by
+    /// <see cref="RabbitMqTransportModule.AddRabbitMqInboundTopology(UsfBuilder, Action{IRabbitMqInboundTopologyBuilder})" />.
+    /// It deliberately differs from <see cref="Topology.DefaultName" /> so that an outbound topology and an
+    /// inbound topology registered without explicit names do not collide: publish call sites resolve the
+    /// default topology by <see cref="Topology.DefaultName" />, while inbound topologies are only started via
+    /// <see cref="ITopologyRuntime" /> and their name is purely a catalog and diagnostics identity.
+    /// </summary>
+    public const string DefaultInboundName = "default-inbound";
+
     private readonly RabbitMqChannelSource _channelSource;
     private readonly RabbitMqConnectionProvider _connectionProvider;
     private readonly IReadOnlyDictionary<InboundEndpointSelectionKey, RabbitMqInboundEndpoint> _dispatchIndex;
