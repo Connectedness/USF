@@ -20,7 +20,7 @@ public sealed class RabbitMqDedicatedTopologiesIntegrationTests
     public async Task DedicatedOutboundAndInboundTopologies_PublishAndConsumeAcrossTwoConnections()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
-        var container = new RabbitMqBuilder("public.ecr.aws/docker/library/rabbitmq:3.13-management").Build();
+        var container = new RabbitMqBuilder("public.ecr.aws/docker/library/rabbitmq:3.13.7-management").Build();
         await container.StartAsync(cancellationToken);
 
         try

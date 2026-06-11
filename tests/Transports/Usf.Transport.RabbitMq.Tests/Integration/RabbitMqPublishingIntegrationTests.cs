@@ -29,7 +29,7 @@ public sealed class RabbitMqPublishingIntegrationTests
     public async Task PublishMessageAsync_PublishesAcrossRabbitMqTopologiesEndToEnd()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
-        var container = new RabbitMqBuilder("public.ecr.aws/docker/library/rabbitmq:3.13-management").Build();
+        var container = new RabbitMqBuilder("public.ecr.aws/docker/library/rabbitmq:3.13.7-management").Build();
         await container.StartAsync(cancellationToken);
 
         try
@@ -270,7 +270,7 @@ public sealed class RabbitMqPublishingIntegrationTests
     public async Task PublishMessageAsync_PublishesSameClrTypeWithPerTopologyContracts()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
-        var container = new RabbitMqBuilder("public.ecr.aws/docker/library/rabbitmq:3.13-management").Build();
+        var container = new RabbitMqBuilder("public.ecr.aws/docker/library/rabbitmq:3.13.7-management").Build();
         await container.StartAsync(cancellationToken);
 
         try
@@ -388,7 +388,7 @@ public sealed class RabbitMqPublishingIntegrationTests
     public async Task PublishRawAsync_PublishesCallerOwnedEnvelopeWithoutUsfSerialization()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
-        var container = new RabbitMqBuilder("public.ecr.aws/docker/library/rabbitmq:3.13-management").Build();
+        var container = new RabbitMqBuilder("public.ecr.aws/docker/library/rabbitmq:3.13.7-management").Build();
         await container.StartAsync(cancellationToken);
 
         try
@@ -474,7 +474,7 @@ public sealed class RabbitMqPublishingIntegrationTests
     public async Task PublishMessageAsync_ThrowsReturnedDeliveryFailureForUnroutableMandatoryMessage()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
-        var container = new RabbitMqBuilder("public.ecr.aws/docker/library/rabbitmq:3.13-management").Build();
+        var container = new RabbitMqBuilder("public.ecr.aws/docker/library/rabbitmq:3.13.7-management").Build();
         await container.StartAsync(cancellationToken);
 
         try
@@ -533,7 +533,7 @@ public sealed class RabbitMqPublishingIntegrationTests
     public async Task PublishMessageAsync_ThrowsNackedDeliveryFailureWhenBrokerRejectsPublish()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
-        var container = new RabbitMqBuilder("public.ecr.aws/docker/library/rabbitmq:3.13-management").Build();
+        var container = new RabbitMqBuilder("public.ecr.aws/docker/library/rabbitmq:3.13.7-management").Build();
         await container.StartAsync(cancellationToken);
 
         try
@@ -609,7 +609,7 @@ public sealed class RabbitMqPublishingIntegrationTests
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var hostPort = GetAvailableTcpPort();
-        var container = new RabbitMqBuilder("public.ecr.aws/docker/library/rabbitmq:3.13-management")
+        var container = new RabbitMqBuilder("public.ecr.aws/docker/library/rabbitmq:3.13.7-management")
            .WithPortBinding(hostPort, 5672)
            .Build();
         await container.StartAsync(cancellationToken);
