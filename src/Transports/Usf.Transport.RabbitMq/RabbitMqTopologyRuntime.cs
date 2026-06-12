@@ -16,9 +16,10 @@ namespace Usf.Transport.RabbitMq;
 
 /// <summary>
 /// The active consumer runtime for a RabbitMQ topology that contains inbound endpoints. It opens consumer
-/// channels, starts <c>BasicConsume</c> for each endpoint, drains in-flight handlers on stop, and disposes the
-/// topology's runtime resources. It is registered as an <see cref="ITopologyRuntime" /> only for topology
-/// instances that contain inbound endpoints, and is started by the shared
+/// channels, starts <c>BasicConsume</c> for each endpoint, and drains in-flight handlers on stop. It does not
+/// dispose the topology itself - the topology is a container-owned singleton whose connection may still be
+/// used for publishing during graceful shutdown. It is registered as an <see cref="ITopologyRuntime" /> only
+/// for topology instances that contain inbound endpoints, and is started by the shared
 /// <see cref="TopologyRuntimeHostedService" /> after topology provisioning completes.
 /// </summary>
 public sealed class RabbitMqTopologyRuntime : ITopologyRuntime
@@ -146,7 +147,6 @@ public sealed class RabbitMqTopologyRuntime : ITopologyRuntime
         _consumerRegistrations.Clear();
         _stoppingCancellationTokenSource?.Dispose();
         _stoppingCancellationTokenSource = null;
-        await _topology.DisposeAsync().ConfigureAwait(false);
     }
 
     private async Task DrainInFlightDeliveriesAsync(CancellationToken cancellationToken)
