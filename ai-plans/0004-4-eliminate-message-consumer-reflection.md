@@ -13,9 +13,10 @@ Out of scope for this slice: a consume-path benchmark in `Usf.Benchmarks` (worth
 
 ## Acceptance Criteria
 
-- [ ] A static factory in `Usf.Core` — `MessageHandlerInvocation.Create<TMessage, THandler>()` where `THandler : class, IMessageHandler<TMessage>` — returns a `MessageDelegate` that resolves the concrete `THandler` from `context.Services`, casts `context.Message` to `TMessage`, and calls `HandleAsync(message, context, context.CancellationToken)`.
+- [ ] A static factory in `Usf.Core` — `MessageHandlerInvocation.Create<TMessage, THandler>()` where `THandler : class, IMessageHandler<TMessage>` — returns a `MessageDelegate` that resolves the concrete `THandler` from `context.Services`, casts `context.Message` to `TMessage` (it must not be null), and calls `HandleAsync(message, context, context.CancellationToken)`.
 - [ ] `InboundEndpoint` accepts the dispatch delegate as a constructor parameter and exposes `public Task InvokeHandlerAsync(IncomingMessageContext context)`, which guards against a null context and a not-yet-deserialized `Message` before invoking the delegate. `InboundEndpoint<TMessage>`, `RabbitMqInboundEndpoint`, and `RabbitMqInboundEndpoint<TMessage>` thread the parameter through their constructor chains.
 - [ ] `RabbitMqInboundEndpointBuilder.HandleNamed<TMessage, THandler>` creates the delegate via `MessageHandlerInvocation.Create<TMessage, THandler>()` and stores it on `RabbitMqInboundHandlerDefinition`; the topology compiler passes it through `CreateEndpointCore` into the endpoint.
+- [ ] `HandleNamed<TMessage, THandler>` throws an `ArgumentException` when `typeof(THandler)` is an interface or an abstract class — the `class` constraint admits both, and auto-registering such a type as its own implementation would otherwise surface as an opaque DI activation error at first delivery.
 - [ ] The inbound pipeline terminal in `RabbitMqTopologyCompiler.BuildPipeline` becomes `static context => context.Endpoint.InvokeHandlerAsync(context)`. No service is resolved to perform dispatch, and no `MakeGenericType`/`MakeGenericMethod`/`MethodInfo.Invoke` executes on the per-delivery path.
 - [ ] `MessageHandlerInvoker` is deleted, including its `TryAddSingleton` registration in `UsfServiceCollectionExtensions.AddUsf`.
 - [ ] `AddRabbitMqTopologyCore` registers each `RabbitMqInboundHandlerDefinition.HandlerType` as a scoped service for its own concrete type via `TryAddScoped`, so all three registration entry points (`AddRabbitMqTopology`, `AddRabbitMqOutboundTopology`, `AddRabbitMqInboundTopology`) auto-register handlers. An existing user registration for the same concrete type (any lifetime) wins.
@@ -23,7 +24,7 @@ Out of scope for this slice: a consume-path benchmark in `Usf.Benchmarks` (worth
 - [ ] A test proves the reviewer's failure scenario is fixed: two inbound endpoints consuming the same message type with two different handler types each dispatch to their own handler.
 - [ ] `RabbitMqDedicatedTopologiesIntegrationTests` no longer registers `IMessageHandler<RabbitMqPublishMessage>` manually — the `Handle<,>()` declaration alone suffices.
 - [ ] All other affected tests are updated: Core tests that construct `InboundEndpoint<TMessage>` directly pass a factory-created delegate; `AddRabbitMqConsumeTopologyTests` drops now-redundant interface registrations and its "handler not registered" validation test is reworked to defeat auto-registration (see Technical Details).
-- [ ] XML docs on `Handle<,>`/`HandleNamed<,>` state that the handler is auto-registered as a scoped service and resolved by its concrete type per delivery.
+- [ ] XML docs on `Handle<,>`/`HandleNamed<,>` state that the handler is auto-registered as a scoped service and resolved by its concrete type per delivery, and that a different lifetime can be chosen by registering the handler type in the service collection before calling `AddRabbitMq*Topology` — auto-registration uses `TryAdd` and yields to an existing registration.
 
 ## Technical Details
 
@@ -45,6 +46,8 @@ public static class MessageHandlerInvocation
 ```
 
 The `static` lambda has no captures; the JIT/AOT compiler closes the generic instantiation at the `Handle<,>()` call site, so dispatch costs one delegate invocation plus one cast per delivery. The factory lives in Core so any transport (and any test) creates dispatch delegates the same way.
+
+The returned delegate deliberately carries no guards — `InboundEndpoint.InvokeHandlerAsync` owns them on the framework path. Because the factory is public Core API, its XML docs must state the precondition: the delegate requires `context.Message` to be the deserialized message (non-null) and `context.Services` to be the per-delivery scope.
 
 ### Endpoint changes
 
@@ -73,7 +76,7 @@ The delegate is exposed only through `InvokeHandlerAsync` — no public property
 
 ### Builder and compiler threading
 
-`RabbitMqInboundHandlerDefinition` gains a `MessageDelegate HandlerInvocation` positional parameter. `HandleNamed<TMessage, THandler>` populates it with `MessageHandlerInvocation.Create<TMessage, THandler>()` alongside the existing `typeof(THandler)`. `RabbitMqTopologyCompiler.CreateEndpointCore<TMessage>` passes `handlerDefinition.HandlerInvocation` into the `RabbitMqInboundEndpoint<TMessage>` constructor.
+`RabbitMqInboundHandlerDefinition` gains a `MessageDelegate HandlerInvocation` positional parameter. `HandleNamed<TMessage, THandler>` populates it with `MessageHandlerInvocation.Create<TMessage, THandler>()` alongside the existing `typeof(THandler)`, after rejecting interface and abstract `THandler` types with an `ArgumentException` (the `class` constraint admits both; previously harmless because `THandler` was unused at runtime, but auto-registration would turn such a type into an uninstantiable self-mapping that only fails at first delivery). `RabbitMqTopologyCompiler.CreateEndpointCore<TMessage>` passes `handlerDefinition.HandlerInvocation` into the `RabbitMqInboundEndpoint<TMessage>` constructor.
 
 `BuildPipeline`'s terminal changes from resolving `MessageHandlerInvoker` to:
 
@@ -103,5 +106,5 @@ Scoped matches the per-delivery scope created by `RabbitMqTopologyRuntime`. `Try
 ### Tests
 
 - **New (Core):** `MessageHandlerInvocation`/`InvokeHandlerAsync` unit tests — the delegate resolves the concrete handler type from the provided scope (not the interface), the cast message reaches `HandleAsync`, and `InvokeHandlerAsync` throws when `Message` is null.
-- **New (RabbitMq):** the distinct-handlers test — a topology with two `Consume` endpoints for the same message type and different handler types; invoking each endpoint's `InvokeHandlerAsync` (or driving the compiled dispatch index) reaches the endpoint's own handler. This pins the bug the reviewer identified.
+- **New (RabbitMq):** the distinct-handlers test — a topology with two `Consume` endpoints for the same message type and different handler types; invoking each endpoint's `InvokeHandlerAsync` (or driving the compiled dispatch index) reaches the endpoint's own handler. This pins the bug the reviewer identified. Plus a builder test asserting that `Handle<TMessage, THandler>` with an interface or abstract `THandler` throws `ArgumentException`.
 - **Updated:** `RabbitMqDedicatedTopologiesIntegrationTests` drops the `AddScoped<IMessageHandler<RabbitMqPublishMessage>, RecordingPublishMessageHandler>()` line — the round trip passing proves auto-registration end to end. `AddRabbitMqConsumeTopologyTests` drops its interface registrations; the test expecting `Inbound handler service ... is not registered` must now defeat auto-registration to trigger the error — remove the handler's service descriptor (`services.RemoveAll(typeof(ValidationMessageAHandler))`) after calling `AddRabbitMqTopology` and before building the provider, and update the expected message. The Core tests constructing `InboundEndpoint<TMessage>` directly (`IncomingMessageContextTests`, `FrameworkMessageAcknowledgementMiddlewareTests`, `TopologyTests`) pass `MessageHandlerInvocation.Create<TMessage, TheirHandler>()` for the new constructor parameter.
