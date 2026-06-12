@@ -41,7 +41,6 @@ public static class UsfServiceCollectionExtensions
         services.TryAddSingleton<CloudEventsInboundMessageInspector>();
         services.TryAddSingleton<FrameworkMessageAcknowledgementMiddleware>();
         services.TryAddSingleton<MessageDeserializationMiddleware>();
-        services.TryAddSingleton<MessageHandlerInvoker>();
         services.TryAddSingleton<IMessagePublisher>(
             static serviceProvider => new MessagePublisher(
                 serviceProvider.GetRequiredService<ITopologyRegistry>()

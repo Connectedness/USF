@@ -513,6 +513,7 @@ public sealed class RabbitMqTopologyCompiler
             handlerDefinition.HandlerType,
             handlerDefinition.SerializerType,
             discriminator,
+            handlerDefinition.HandlerInvocation,
             handlerDefinition.AckMode,
             handlerDefinition.QueueName,
             handlerDefinition.InspectorType,
@@ -534,9 +535,7 @@ public sealed class RabbitMqTopologyCompiler
             }
         );
         configuration.ConfigurePipeline?.Invoke(pipeline);
-        return pipeline.Build(
-            static context => context.Services.GetRequiredService<MessageHandlerInvoker>().InvokeAsync(context)
-        );
+        return pipeline.Build(static context => context.Endpoint.InvokeHandlerAsync(context));
     }
 
     // ----- Channel budget -----
@@ -1147,12 +1146,10 @@ public sealed class RabbitMqTopologyCompiler
         ICollection<string> validationErrors
     )
     {
-        var handlerServiceType = typeof(IMessageHandler<>).MakeGenericType(handler.MessageType);
-
-        if (!_isServiceRegistered(handlerServiceType))
+        if (!_isServiceRegistered(handler.HandlerType))
         {
             validationErrors.Add(
-                $"Inbound handler service '{handlerServiceType}' for message '{GetTypeName(handler.MessageType)}' is not registered."
+                $"Inbound handler '{handler.HandlerType}' for message '{GetTypeName(handler.MessageType)}' is not registered."
             );
         }
 

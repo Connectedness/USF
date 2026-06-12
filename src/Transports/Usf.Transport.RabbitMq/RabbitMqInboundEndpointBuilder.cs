@@ -103,21 +103,42 @@ public sealed class RabbitMqInboundEndpointBuilder
         return WithAckMode(MessageAckMode.Manual);
     }
 
+    /// <summary>
+    /// Adds a handler for <typeparamref name="TMessage" />. The concrete <typeparamref name="THandler" /> type is
+    /// auto-registered as scoped and resolved from the per-delivery scope. Register the concrete handler type before
+    /// calling <c>AddRabbitMq*Topology</c> to choose a different lifetime; auto-registration yields to an existing
+    /// registration.
+    /// </summary>
     public RabbitMqInboundEndpointBuilder Handle<TMessage, THandler>()
         where THandler : class, IMessageHandler<TMessage>
     {
         return HandleNamed<TMessage, THandler>(endpointName: null);
     }
 
+    /// <summary>
+    /// Adds a named handler for <typeparamref name="TMessage" />. The concrete <typeparamref name="THandler" /> type
+    /// is auto-registered as scoped and resolved from the per-delivery scope. Register the concrete handler type
+    /// before calling <c>AddRabbitMq*Topology</c> to choose a different lifetime; auto-registration yields to an
+    /// existing registration.
+    /// </summary>
     public RabbitMqInboundEndpointBuilder HandleNamed<TMessage, THandler>(string? endpointName)
         where THandler : class, IMessageHandler<TMessage>
     {
+        if (typeof(THandler).IsInterface || typeof(THandler).IsAbstract)
+        {
+            throw new ArgumentException(
+                $"Handler type '{typeof(THandler)}' must be a concrete class.",
+                nameof(THandler)
+            );
+        }
+
         _handlers.Add(
             new RabbitMqInboundHandlerDefinition(
                 _queueName,
                 endpointName,
                 typeof(TMessage),
                 typeof(THandler),
+                MessageHandlerInvocation.Create<TMessage, THandler>(),
                 _serializerType,
                 _inspectorType,
                 _channelGroupName,

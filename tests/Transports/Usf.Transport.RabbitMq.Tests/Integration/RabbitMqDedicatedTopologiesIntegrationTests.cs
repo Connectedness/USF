@@ -28,7 +28,6 @@ public sealed class RabbitMqDedicatedTopologiesIntegrationTests
             ConsumedMessageSink sink = new ();
             var services = new ServiceCollection();
             services.AddSingleton(sink);
-            services.AddScoped<IMessageHandler<RabbitMqPublishMessage>, RecordingPublishMessageHandler>();
             services
                .AddTestCloudEvents()
                .AddRabbitMqOutboundTopology(

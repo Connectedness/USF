@@ -39,7 +39,8 @@ public sealed class IncomingMessageContextTests
                 Topology.DefaultName,
                 typeof(TestHandler),
                 typeof(CloudEventMessageSerializer),
-                "tests.message"
+                "tests.message",
+                MessageHandlerInvocation.Create<TestMessage, TestHandler>()
             ),
             EmptyServiceProvider.Instance,
             new RecordingAcknowledgement(),

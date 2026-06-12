@@ -8,6 +8,7 @@ public sealed record RabbitMqInboundHandlerDefinition(
     string? EndpointName,
     Type MessageType,
     Type HandlerType,
+    MessageDelegate HandlerInvocation,
     Type SerializerType,
     Type InspectorType,
     string? ChannelGroupName,

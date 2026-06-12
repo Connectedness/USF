@@ -12,6 +12,7 @@ public abstract class RabbitMqInboundEndpoint : InboundEndpoint
         Type handlerType,
         Type serializerType,
         string discriminator,
+        MessageDelegate handlerInvocation,
         MessageAckMode ackMode,
         string queueName,
         Type inspectorType,
@@ -25,6 +26,7 @@ public abstract class RabbitMqInboundEndpoint : InboundEndpoint
             handlerType,
             serializerType,
             discriminator,
+            handlerInvocation,
             ackMode
         )
     {
@@ -66,6 +68,7 @@ public sealed class RabbitMqInboundEndpoint<TMessage> : RabbitMqInboundEndpoint
         Type handlerType,
         Type serializerType,
         string discriminator,
+        MessageDelegate handlerInvocation,
         MessageAckMode ackMode,
         string queueName,
         Type inspectorType,
@@ -78,6 +81,7 @@ public sealed class RabbitMqInboundEndpoint<TMessage> : RabbitMqInboundEndpoint
             handlerType,
             serializerType,
             discriminator,
+            handlerInvocation,
             ackMode,
             queueName,
             inspectorType,

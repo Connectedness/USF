@@ -9,7 +9,7 @@ using Usf.Core.Messaging.Serialization;
 using Usf.Core.Tests.Messaging.TestSupport;
 using Xunit;
 
-namespace Usf.Core.Tests.Topologies;
+namespace Usf.Core.Tests.Messaging;
 
 public sealed class TopologyTests
 {
@@ -98,7 +98,8 @@ public sealed class TopologyTests
             Topology.DefaultName,
             typeof(SampleMessageHandler),
             typeof(CloudEventMessageSerializer),
-            "sample"
+            "sample",
+            MessageHandlerInvocation.Create<SampleMessage, SampleMessageHandler>()
         );
         var topology = new TestTopology(
             Topology.DefaultName,

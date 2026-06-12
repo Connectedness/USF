@@ -96,6 +96,7 @@ public sealed class FrameworkMessageAcknowledgementMiddlewareTests
                 typeof(TestHandler),
                 typeof(CloudEventMessageSerializer),
                 "tests.message",
+                MessageHandlerInvocation.Create<TestMessage, TestHandler>(),
                 ackMode
             ),
             EmptyServiceProvider.Instance,

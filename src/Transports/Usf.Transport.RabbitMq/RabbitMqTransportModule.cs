@@ -147,6 +147,11 @@ public static class RabbitMqTransportModule
         var services = builder.Services;
         builder.Topologies.Add(topologyName);
 
+        foreach (var handler in configuration.Handlers)
+        {
+            services.TryAddScoped(handler.HandlerType);
+        }
+
         services.AddKeyedSingleton<RabbitMqTopology>(
             topologyName,
             (serviceProvider, _) =>
