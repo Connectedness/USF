@@ -11,6 +11,7 @@ public interface IMessagePublisher
     Task PublishMessageAsync<T>(
         T message,
         OutboundTarget? target = null,
+        string? routingKey = null,
         CancellationToken cancellationToken = default
     ) where T : ICloudEvent;
 
@@ -18,6 +19,7 @@ public interface IMessagePublisher
         T message,
         in CloudEventMetadata metadata,
         OutboundTarget? target = null,
+        string? routingKey = null,
         CancellationToken cancellationToken = default
     );
 

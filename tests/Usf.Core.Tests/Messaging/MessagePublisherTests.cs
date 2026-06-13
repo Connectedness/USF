@@ -51,12 +51,65 @@ public sealed class MessagePublisherTests
         var publisher = new MessagePublisher(new EmptyOutboundTopology());
         var message = new SampleMessage("hello");
 
-        await publisher.PublishMessageAsync(message, explicitTarget, cancellationToken);
+        await publisher.PublishMessageAsync(
+            message,
+            explicitTarget,
+            "orders.created",
+            cancellationToken
+        );
 
         explicitTarget.Messages.Should().ContainSingle().Which.Should().Be(message);
+        explicitTarget.RoutingKeys.Should().ContainSingle().Which.Should().Be("orders.created");
         Encoding.UTF8.GetString(explicitTarget.CloudEventEnvelopes.Should().ContainSingle().Which.Data)
            .Should()
            .Be("{\"Value\":\"hello\"}");
+    }
+
+    [Fact]
+    public async Task PublishMessageAsync_ForwardsRoutingKeyToTopologyResolvedTarget()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var target = new RecordingTarget<SampleMessage>("default", CloudEventsTestFactory.CreateSerializer());
+        var topology = new OutboundTopology(
+            new Dictionary<Type, OutboundTarget>
+            {
+                [typeof(SampleMessage)] = target
+            },
+            new Dictionary<string, OutboundTarget>(StringComparer.Ordinal)
+        );
+        var publisher = new MessagePublisher(topology);
+
+        await publisher.PublishMessageAsync(
+            new SampleMessage("hello"),
+            routingKey: "tenant-a.created",
+            cancellationToken: cancellationToken
+        );
+
+        target.RoutingKeys.Should().ContainSingle().Which.Should().Be("tenant-a.created");
+    }
+
+    [Fact]
+    public async Task TopologyPublisher_PublishMessageAsync_ForwardsRoutingKeyToExplicitTarget()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var target = new RecordingTarget<SampleMessage>(
+            "legacy",
+            CloudEventsTestFactory.CreateSerializer(),
+            CloudEventsTestFactory.CreateRegistry(),
+            "legacy"
+        );
+        var publisher = new MessagePublisher(new EmptyOutboundTopology());
+
+        await publisher
+           .ForTopology("legacy")
+           .PublishMessageAsync(
+                new SampleMessage("hello"),
+                target,
+                routingKey: "legacy.created",
+                cancellationToken: cancellationToken
+            );
+
+        target.RoutingKeys.Should().ContainSingle().Which.Should().Be("legacy.created");
     }
 
     [Fact]
@@ -82,13 +135,15 @@ public sealed class MessagePublisherTests
             new ThirdPartyMessage("hello"),
             in metadata,
             target,
-            cancellationToken
+            routingKey: "third-party.created",
+            cancellationToken: cancellationToken
         );
 
         var envelope = target.CloudEventEnvelopes.Should().ContainSingle().Which;
         envelope.Id.Should().Be("f39b562b-b846-48e6-a693-4108015e7c82");
         envelope.Subject.Should().Be("subject");
         envelope.Type.Should().Be("tests.third-party");
+        target.RoutingKeys.Should().ContainSingle().Which.Should().Be("third-party.created");
     }
 
     [Fact]
@@ -224,7 +279,7 @@ public sealed class MessagePublisherTests
         var publisher = new MessagePublisher(new EmptyOutboundTopology());
         BaseSampleMessage message = new DerivedSampleMessage("hello", "detail");
 
-        await publisher.PublishMessageAsync(message, target, cancellationToken);
+        await publisher.PublishMessageAsync(message, target, cancellationToken: cancellationToken);
 
         var envelope = target.CloudEventEnvelopes.Should().ContainSingle().Which;
         envelope.Type.Should().Be("tests.derived");
@@ -255,6 +310,7 @@ public sealed class MessagePublisherTests
         await publisher.PublishRawAsync(message, target, cancellationToken);
 
         target.Messages.Should().BeEmpty();
+        target.RoutingKeys.Should().BeEmpty();
         target.SerializedMessages.Should().ContainSingle().Which.Should().Be(message);
     }
 

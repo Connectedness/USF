@@ -54,12 +54,13 @@ public abstract class RabbitMqOutboundTarget<TMessage> : OutboundTarget<TMessage
     protected sealed override Task PublishTypedCloudEventAsync(
         TMessage message,
         CloudEventEnvelope envelope,
+        string? routingKey,
         CancellationToken cancellationToken
     )
     {
         return DispatchAsync(
             envelope,
-            GetRoutingKey(message),
+            ResolveRoutingKey(message, routingKey),
             GetRouteHeaders(message),
             cancellationToken
         );
@@ -78,6 +79,11 @@ public abstract class RabbitMqOutboundTarget<TMessage> : OutboundTarget<TMessage
     protected virtual string GetRoutingKey(TMessage message)
     {
         return string.Empty;
+    }
+
+    protected virtual string ResolveRoutingKey(TMessage message, string? routingKey)
+    {
+        return string.IsNullOrWhiteSpace(routingKey) ? GetRoutingKey(message) : routingKey!;
     }
 
     protected virtual IReadOnlyDictionary<string, object?> GetRouteHeaders(TMessage message)

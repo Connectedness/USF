@@ -18,20 +18,22 @@ public readonly struct TopologyPublisher
     public Task PublishMessageAsync<T>(
         T message,
         OutboundTarget? target = null,
+        string? routingKey = null,
         CancellationToken cancellationToken = default
     ) where T : ICloudEvent
     {
-        return Router.PublishMessageAsync(message, target, _topologyName, cancellationToken);
+        return Router.PublishMessageAsync(message, _topologyName, target, routingKey, cancellationToken);
     }
 
     public Task PublishMessageAsync<T>(
         T message,
         in CloudEventMetadata metadata,
         OutboundTarget? target = null,
+        string? routingKey = null,
         CancellationToken cancellationToken = default
     )
     {
-        return Router.PublishMessageAsync(message, in metadata, target, _topologyName, cancellationToken);
+        return Router.PublishMessageAsync(message, in metadata, _topologyName, target, routingKey, cancellationToken);
     }
 
     public Task PublishRawAsync(

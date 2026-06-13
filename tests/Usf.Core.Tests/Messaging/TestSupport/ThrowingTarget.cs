@@ -35,6 +35,7 @@ public sealed class ThrowingTarget<TMessage> : OutboundTarget<TMessage>
     protected override Task PublishTypedCloudEventAsync(
         TMessage message,
         CloudEventEnvelope envelope,
+        string? routingKey,
         CancellationToken cancellationToken
     )
     {

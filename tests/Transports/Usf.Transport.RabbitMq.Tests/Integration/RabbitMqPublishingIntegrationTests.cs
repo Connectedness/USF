@@ -170,7 +170,7 @@ public sealed class RabbitMqPublishingIntegrationTests
             await publisher.PublishMessageAsync(
                 new RabbitMqPublishMessage(43, "topic"),
                 targetRegistry.GetRequiredTarget("topic-target"),
-                cancellationToken
+                cancellationToken: cancellationToken
             );
             await publisher.PublishMessageAsync(
                 new RabbitMqAuditMessage(1042, "audit"),
@@ -179,17 +179,17 @@ public sealed class RabbitMqPublishingIntegrationTests
             await publisher.PublishMessageAsync(
                 new RabbitMqPublishMessage(44, "fanout"),
                 targetRegistry.GetRequiredTarget("fanout-target"),
-                cancellationToken
+                cancellationToken: cancellationToken
             );
             await publisher.PublishMessageAsync(
                 new RabbitMqPublishMessage(45, "headers"),
                 targetRegistry.GetRequiredTarget("headers-target"),
-                cancellationToken
+                cancellationToken: cancellationToken
             );
             await publisher.PublishMessageAsync(
                 new RabbitMqPublishMessage(46, "exchange"),
                 targetRegistry.GetRequiredTarget("exchange-binding-target"),
-                cancellationToken
+                cancellationToken: cancellationToken
             );
 
             var connectionFactory = new ConnectionFactory
@@ -375,6 +375,170 @@ public sealed class RabbitMqPublishingIntegrationTests
                .Should().Be("tests.rabbitmq.publish.modern");
             ExtractHeaderValue(modernMessage.BasicProperties.Headers!, "cloudEvents:dataschema")
                .Should().Be("/schemas/modern");
+        }
+        finally
+        {
+            await container.DisposeAsync();
+        }
+    }
+
+    [Fact]
+    public async Task PublishMessageAsync_OverridesConstantDirectRoutingKeyWithCallerRoutingKey()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var container = new RabbitMqBuilder("public.ecr.aws/docker/library/rabbitmq:3.13-management").Build();
+        await container.StartAsync(cancellationToken);
+
+        try
+        {
+            var services = new ServiceCollection();
+            services.AddTestCloudEvents()
+               .AddRabbitMqOutboundTopology(
+                    builder =>
+                    {
+                        builder.UseConnectionFactory(
+                            _ => new ConnectionFactory
+                            {
+                                Uri = new Uri(container.GetConnectionString())
+                            }
+                        );
+
+                        builder.Exchange("routing-direct", ExchangeType.Direct);
+                        builder.Address("routing-direct-address", "routing-direct");
+                        builder.Queue("routing-direct-default-queue");
+                        builder.Queue("routing-direct-override-queue");
+                        builder.QueueBinding("routing-direct", "routing-direct-default-queue", "orders.created");
+                        builder.QueueBinding("routing-direct", "routing-direct-override-queue", "orders.override");
+
+                        builder.Publish<RabbitMqPublishMessage>(
+                            route => route
+                               .ToDirectAddress("routing-direct-address", "orders.created")
+                               .WithSerializer<CloudEventMessageSerializer>()
+                        );
+                    }
+                );
+
+            await using var serviceProvider = services.BuildServiceProvider();
+
+            foreach (var hostedService in serviceProvider.GetServices<IHostedService>())
+            {
+                await hostedService.StartAsync(cancellationToken);
+            }
+
+            var publisher = serviceProvider.GetRequiredService<IMessagePublisher>();
+
+            await publisher.PublishMessageAsync(
+                new RabbitMqPublishMessage(60, "created"),
+                routingKey: "orders.override",
+                cancellationToken: cancellationToken
+            );
+            await publisher.PublishMessageAsync(
+                new RabbitMqPublishMessage(61, "created"),
+                cancellationToken: cancellationToken
+            );
+
+            var connectionFactory = new ConnectionFactory
+            {
+                Uri = new Uri(container.GetConnectionString())
+            };
+            await using var connection = await connectionFactory.CreateConnectionAsync(cancellationToken);
+            await using var channel = await connection.CreateChannelAsync(cancellationToken: cancellationToken);
+
+            var overrideMessage = await GetRequiredMessageAsync(
+                channel,
+                "routing-direct-override-queue",
+                cancellationToken
+            );
+            var defaultMessage = await GetRequiredMessageAsync(
+                channel,
+                "routing-direct-default-queue",
+                cancellationToken
+            );
+
+            Encoding.UTF8.GetString(overrideMessage.Body.ToArray()).Should().Be("{\"Id\":60,\"Name\":\"created\"}");
+            Encoding.UTF8.GetString(defaultMessage.Body.ToArray()).Should().Be("{\"Id\":61,\"Name\":\"created\"}");
+        }
+        finally
+        {
+            await container.DisposeAsync();
+        }
+    }
+
+    [Fact]
+    public async Task PublishMessageAsync_OverridesTopicRoutingKeyFactoryWithCallerRoutingKey()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var container = new RabbitMqBuilder("public.ecr.aws/docker/library/rabbitmq:3.13-management").Build();
+        await container.StartAsync(cancellationToken);
+
+        try
+        {
+            var services = new ServiceCollection();
+            services.AddTestCloudEvents()
+               .AddRabbitMqOutboundTopology(
+                    builder =>
+                    {
+                        builder.UseConnectionFactory(
+                            _ => new ConnectionFactory
+                            {
+                                Uri = new Uri(container.GetConnectionString())
+                            }
+                        );
+
+                        builder.Exchange("routing-topic", ExchangeType.Topic);
+                        builder.Address("routing-topic-address", "routing-topic");
+                        builder.Queue("routing-topic-default-queue");
+                        builder.Queue("routing-topic-override-queue");
+                        builder.QueueBinding("routing-topic", "routing-topic-default-queue", "orders.topic");
+                        builder.QueueBinding("routing-topic", "routing-topic-override-queue", "orders.override");
+
+                        builder.Publish<RabbitMqPublishMessage>(
+                            route => route
+                               .ToTopicAddress("routing-topic-address", static message => $"orders.{message.Name}")
+                               .WithSerializer<CloudEventMessageSerializer>()
+                        );
+                    }
+                );
+
+            await using var serviceProvider = services.BuildServiceProvider();
+
+            foreach (var hostedService in serviceProvider.GetServices<IHostedService>())
+            {
+                await hostedService.StartAsync(cancellationToken);
+            }
+
+            var publisher = serviceProvider.GetRequiredService<IMessagePublisher>();
+
+            await publisher.PublishMessageAsync(
+                new RabbitMqPublishMessage(70, "topic"),
+                routingKey: "orders.override",
+                cancellationToken: cancellationToken
+            );
+            await publisher.PublishMessageAsync(
+                new RabbitMqPublishMessage(71, "topic"),
+                cancellationToken: cancellationToken
+            );
+
+            var connectionFactory = new ConnectionFactory
+            {
+                Uri = new Uri(container.GetConnectionString())
+            };
+            await using var connection = await connectionFactory.CreateConnectionAsync(cancellationToken);
+            await using var channel = await connection.CreateChannelAsync(cancellationToken: cancellationToken);
+
+            var overrideMessage = await GetRequiredMessageAsync(
+                channel,
+                "routing-topic-override-queue",
+                cancellationToken
+            );
+            var defaultMessage = await GetRequiredMessageAsync(
+                channel,
+                "routing-topic-default-queue",
+                cancellationToken
+            );
+
+            Encoding.UTF8.GetString(overrideMessage.Body.ToArray()).Should().Be("{\"Id\":70,\"Name\":\"topic\"}");
+            Encoding.UTF8.GetString(defaultMessage.Body.ToArray()).Should().Be("{\"Id\":71,\"Name\":\"topic\"}");
         }
         finally
         {

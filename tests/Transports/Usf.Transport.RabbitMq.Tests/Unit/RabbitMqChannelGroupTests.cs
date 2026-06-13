@@ -341,13 +341,16 @@ public sealed class RabbitMqChannelGroupTests
             false
         );
 
-        var firstPublish = async () => await target.PublishAsync(new ValidationMessageA("first"), cancellationToken);
+        var firstPublish = async () => await target.PublishAsync(
+            new ValidationMessageA("first"),
+            cancellationToken: cancellationToken
+        );
 
         var deliveryException = (await firstPublish.Should().ThrowAsync<MessageDeliveryException>()).Which;
         deliveryException.TargetName.Should().Be("target");
         deliveryException.Reason.Should().Be(expectedReason);
         deliveryException.InnerException.Should().BeSameAs(publishException);
-        await target.PublishAsync(new ValidationMessageA("second"), cancellationToken);
+        await target.PublishAsync(new ValidationMessageA("second"), cancellationToken: cancellationToken);
 
         channel.BasicPublishCallCount.Should().Be(2);
         channel.DisposeAsyncCallCount.Should().Be(0);
@@ -381,10 +384,13 @@ public sealed class RabbitMqChannelGroupTests
             false
         );
 
-        var firstPublish = async () => await target.PublishAsync(new ValidationMessageA("first"), cancellationToken);
+        var firstPublish = async () => await target.PublishAsync(
+            new ValidationMessageA("first"),
+            cancellationToken: cancellationToken
+        );
 
         await firstPublish.Should().ThrowAsync<InvalidOperationException>();
-        await target.PublishAsync(new ValidationMessageA("second"), cancellationToken);
+        await target.PublishAsync(new ValidationMessageA("second"), cancellationToken: cancellationToken);
 
         firstChannel.DisposeAsyncCallCount.Should().Be(1);
         secondChannel.BasicPublishCallCount.Should().Be(1);
@@ -414,7 +420,10 @@ public sealed class RabbitMqChannelGroupTests
             false
         );
 
-        var firstPublish = async () => await target.PublishAsync(new ValidationMessageA("first"), cancellationToken);
+        var firstPublish = async () => await target.PublishAsync(
+            new ValidationMessageA("first"),
+            cancellationToken: cancellationToken
+        );
 
         var deliveryException = (await firstPublish.Should().ThrowAsync<MessageDeliveryException>()).Which;
         deliveryException.TargetName.Should().Be("target");
@@ -422,7 +431,7 @@ public sealed class RabbitMqChannelGroupTests
         deliveryException.InnerException.Should().BeNull();
 
         channel.BasicPublishAsyncHandler = _ => default;
-        await target.PublishAsync(new ValidationMessageA("second"), cancellationToken);
+        await target.PublishAsync(new ValidationMessageA("second"), cancellationToken: cancellationToken);
 
         channel.BasicPublishCallCount.Should().Be(2);
         channel.DisposeAsyncCallCount.Should().Be(0);
@@ -451,7 +460,10 @@ public sealed class RabbitMqChannelGroupTests
         );
         using var cancellationTokenSource = new CancellationTokenSource();
 
-        var publish = target.PublishAsync(new ValidationMessageA("first"), cancellationTokenSource.Token);
+        var publish = target.PublishAsync(
+            new ValidationMessageA("first"),
+            cancellationToken: cancellationTokenSource.Token
+        );
         await cancellationTokenSource.CancelAsync();
 
         var action = async () => await publish;
@@ -503,6 +515,147 @@ public sealed class RabbitMqChannelGroupTests
     }
 
     [Fact]
+    public async Task RabbitMqOutboundTarget_UsesCallerRoutingKeyForTypedPublish()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var channel = new TestRabbitMqChannel();
+        await using var channelGroup = new RabbitMqChannelGroup(
+            "group",
+            1,
+            _ => Task.FromResult(channel.Object)
+        );
+        var target = new RabbitMqDirectOutboundTarget<ValidationMessageA>(
+            "target",
+            RabbitMqCloudEventsTestFactory.CreateSerializer(),
+            RabbitMqCloudEventsTestFactory.CreateRegistry(),
+            TopologyName.Default,
+            channelGroup,
+            "exchange",
+            false,
+            "target.route",
+            null
+        );
+
+        await target.PublishAsync(
+            new ValidationMessageA("value"),
+            "caller.route",
+            cancellationToken: cancellationToken
+        );
+
+        channel.LastPublishedRoutingKey.Should().Be("caller.route");
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public async Task RabbitMqOutboundTarget_UsesTargetRoutingKeyWhenCallerRoutingKeyIsBlank(
+        string? callerRoutingKey
+    )
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var channel = new TestRabbitMqChannel();
+        await using var channelGroup = new RabbitMqChannelGroup(
+            "group",
+            1,
+            _ => Task.FromResult(channel.Object)
+        );
+        var target = new RabbitMqDirectOutboundTarget<ValidationMessageA>(
+            "target",
+            RabbitMqCloudEventsTestFactory.CreateSerializer(),
+            RabbitMqCloudEventsTestFactory.CreateRegistry(),
+            TopologyName.Default,
+            channelGroup,
+            "exchange",
+            false,
+            "target.route",
+            null
+        );
+
+        await target.PublishAsync(
+            new ValidationMessageA("value"),
+            callerRoutingKey,
+            cancellationToken: cancellationToken
+        );
+
+        channel.LastPublishedRoutingKey.Should().Be("target.route");
+    }
+
+    [Fact]
+    public async Task RabbitMqOutboundTarget_DoesNotEvaluateMessageRoutingKeyFactoryWhenCallerRoutingKeyIsProvided()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var channel = new TestRabbitMqChannel();
+        var factoryCallCount = 0;
+        await using var channelGroup = new RabbitMqChannelGroup(
+            "group",
+            1,
+            _ => Task.FromResult(channel.Object)
+        );
+        var target = new RabbitMqTopicOutboundTarget<ValidationMessageA>(
+            "target",
+            RabbitMqCloudEventsTestFactory.CreateSerializer(),
+            RabbitMqCloudEventsTestFactory.CreateRegistry(),
+            TopologyName.Default,
+            channelGroup,
+            "exchange",
+            false,
+            null,
+            _ =>
+            {
+                factoryCallCount++;
+                throw new InvalidOperationException("The routing-key factory should not run.");
+            }
+        );
+
+        await target.PublishAsync(
+            new ValidationMessageA("value"),
+            "caller.topic",
+            cancellationToken: cancellationToken
+        );
+
+        channel.LastPublishedRoutingKey.Should().Be("caller.topic");
+        factoryCallCount.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task RabbitMqOutboundTarget_UsesMessageRoutingKeyFactoryWhenCallerRoutingKeyIsBlank()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var channel = new TestRabbitMqChannel();
+        var factoryCallCount = 0;
+        await using var channelGroup = new RabbitMqChannelGroup(
+            "group",
+            1,
+            _ => Task.FromResult(channel.Object)
+        );
+        var target = new RabbitMqTopicOutboundTarget<ValidationMessageA>(
+            "target",
+            RabbitMqCloudEventsTestFactory.CreateSerializer(),
+            RabbitMqCloudEventsTestFactory.CreateRegistry(),
+            TopologyName.Default,
+            channelGroup,
+            "exchange",
+            false,
+            null,
+            message =>
+            {
+                factoryCallCount++;
+                return $"message.{message.Value}";
+            }
+        );
+
+        await target.PublishAsync(
+            new ValidationMessageA("created"),
+            "   ",
+            cancellationToken: cancellationToken
+        );
+
+        channel.LastPublishedRoutingKey.Should().Be("message.created");
+        factoryCallCount.Should().Be(1);
+    }
+
+    [Fact]
     public async Task RabbitMqOutboundTarget_BindsCloudEventExtensionsToPrefixedApplicationHeaders()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
@@ -537,7 +690,7 @@ public sealed class RabbitMqChannelGroupTests
             false
         );
 
-        await target.PublishAsync(new ValidationMessageA("value"), cancellationToken);
+        await target.PublishAsync(new ValidationMessageA("value"), cancellationToken: cancellationToken);
 
         channel.LastPublishedProperties.Should().NotBeNull();
         channel.LastPublishedProperties!.ContentType.Should().Be("application/custom");
@@ -604,7 +757,11 @@ public sealed class RabbitMqChannelGroupTests
         };
         ActivitySource.AddActivityListener(listener);
 
-        await publisher.PublishMessageAsync(new ValidationMessageA("value"), target, cancellationToken);
+        await publisher.PublishMessageAsync(
+            new ValidationMessageA("value"),
+            target,
+            cancellationToken: cancellationToken
+        );
 
         producerActivity.Should().NotBeNull();
         producerActivity!.Kind.Should().Be(ActivityKind.Producer);
