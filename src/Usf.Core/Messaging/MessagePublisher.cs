@@ -33,6 +33,7 @@ public sealed class MessagePublisher : IMessagePublisher
     public Task PublishMessageAsync<T>(
         T message,
         OutboundTarget? target = null,
+        string? routingKey = null,
         CancellationToken cancellationToken = default
     ) where T : ICloudEvent
     {
@@ -42,17 +43,18 @@ public sealed class MessagePublisher : IMessagePublisher
         }
 
         var metadata = CloudEventMetadata.From(message);
-        return PublishMessageAsync(message, in metadata, target, TopologyName.Default, cancellationToken);
+        return PublishMessageAsync(message, in metadata, TopologyName.Default, target, routingKey, cancellationToken);
     }
 
     public Task PublishMessageAsync<T>(
         T message,
         in CloudEventMetadata metadata,
         OutboundTarget? target = null,
+        string? routingKey = null,
         CancellationToken cancellationToken = default
     )
     {
-        return PublishMessageAsync(message, in metadata, target, TopologyName.Default, cancellationToken);
+        return PublishMessageAsync(message, in metadata, TopologyName.Default, target, routingKey, cancellationToken);
     }
 
     public async Task PublishRawAsync(
@@ -66,8 +68,9 @@ public sealed class MessagePublisher : IMessagePublisher
 
     public Task PublishMessageAsync<T>(
         T message,
-        OutboundTarget? target,
         TopologyName topologyName,
+        OutboundTarget? target = null,
+        string? routingKey = null,
         CancellationToken cancellationToken = default
     ) where T : ICloudEvent
     {
@@ -77,18 +80,19 @@ public sealed class MessagePublisher : IMessagePublisher
         }
 
         var metadata = CloudEventMetadata.From(message);
-        return PublishMessageAsync(message, in metadata, target, topologyName, cancellationToken);
+        return PublishMessageAsync(message, in metadata, topologyName, target, routingKey, cancellationToken);
     }
 
     public Task PublishMessageAsync<T>(
         T message,
         in CloudEventMetadata metadata,
-        OutboundTarget? target,
         TopologyName topologyName,
+        OutboundTarget? target = null,
+        string? routingKey = null,
         CancellationToken cancellationToken = default
     )
     {
-        return PublishMessageCoreAsync(message, metadata, target, topologyName, cancellationToken);
+        return PublishMessageCoreAsync(message, metadata, target, topologyName, routingKey, cancellationToken);
     }
 
     public async Task PublishRawAsync(
@@ -127,6 +131,7 @@ public sealed class MessagePublisher : IMessagePublisher
         CloudEventMetadata metadata,
         OutboundTarget? target,
         TopologyName topologyName,
+        string? routingKey,
         CancellationToken cancellationToken
     )
     {
@@ -135,9 +140,10 @@ public sealed class MessagePublisher : IMessagePublisher
             throw new ArgumentNullException(nameof(message));
         }
 
-        var resolvedTarget = target ?? _outboundTopologyRegistry
-           .GetRequiredTopology(topologyName)
-           .GetRequiredTarget<T>();
+        var resolvedTarget = target ??
+                             _outboundTopologyRegistry
+                                .GetRequiredTopology(topologyName)
+                                .GetRequiredTarget<T>();
         ValidateExplicitTargetTopology(resolvedTarget, topologyName, target is not null);
         if (resolvedTarget is not OutboundTarget<T> typedTarget)
         {
@@ -160,6 +166,7 @@ public sealed class MessagePublisher : IMessagePublisher
                     in metadata,
                     discriminator,
                     dataSchema,
+                    routingKey,
                     cancellationToken
                 )
                .ConfigureAwait(false)

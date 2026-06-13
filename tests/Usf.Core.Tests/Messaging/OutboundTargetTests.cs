@@ -12,6 +12,24 @@ namespace Usf.Core.Tests.Messaging;
 public sealed class OutboundTargetTests
 {
     [Fact]
+    public async Task PublishAsync_ForwardsRoutingKeyToTypedDispatch()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var target = new RecordingTarget<SampleMessage>(
+            "default",
+            CloudEventsTestFactory.CreateSerializer()
+        );
+
+        await target.PublishAsync(
+            new SampleMessage("hello"),
+            "target.route",
+            cancellationToken
+        );
+
+        target.RoutingKeys.Should().ContainSingle().Which.Should().Be("target.route");
+    }
+
+    [Fact]
     public async Task PublishAsync_WrapsSerializationFailures()
     {
         var serializer = new ThrowingSerializer(new InvalidOperationException("boom"));

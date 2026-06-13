@@ -6,15 +6,15 @@ Allow callers to pass a domain-driven routing key when publishing a message, tre
 
 ## Acceptance Criteria
 
-- [ ] `IMessagePublisher.PublishMessageAsync` overloads accept an optional routing key in addition to the optional `OutboundTarget` without introducing ambiguous positional string calls for topology selection.
-- [ ] Topology-scoped publishing through `TopologyPublisher` supports the same optional routing key behavior.
-- [ ] `OutboundTarget<T>`'s typed publish contract (`PublishAsync` / `PublishTypedCloudEventAsync`) carries the optional routing key; the non-generic `OutboundTarget.PublishSerializedAsync` raw path remains unchanged.
-- [ ] `PublishRawAsync` remains unchanged because `SerializedMessage` already carries routing information in its headers.
-- [ ] Routing keys are represented as `string` values and remain optional; a `null`, empty, or whitespace-only routing key is treated the same as omitted and falls back to existing target routing behavior.
-- [ ] `Usf.Core` contains no broker-specific routing logic; the routing key is carried through as an opaque `string?` and interpreted only by transport implementations.
-- [ ] For RabbitMQ typed publishing, a caller routing key that is not null, empty, or whitespace overrides both constant target routing keys and message-derived routing-key factories; when the caller routing key is null, empty, or whitespace, existing target routing behavior is preserved.
-- [ ] Existing target-based publishing behavior continues to work when no routing key is provided.
-- [ ] Automated tests need to be written.
+- [x] `IMessagePublisher.PublishMessageAsync` overloads accept an optional routing key in addition to the optional `OutboundTarget` without introducing ambiguous positional string calls for topology selection.
+- [x] Topology-scoped publishing through `TopologyPublisher` supports the same optional routing key behavior.
+- [x] `OutboundTarget<T>`'s typed publish contract (`PublishAsync` / `PublishTypedCloudEventAsync`) carries the optional routing key; the non-generic `OutboundTarget.PublishSerializedAsync` raw path remains unchanged.
+- [x] `PublishRawAsync` remains unchanged because `SerializedMessage` already carries routing information in its headers.
+- [x] Routing keys are represented as `string` values and remain optional; a `null`, empty, or whitespace-only routing key is treated the same as omitted and falls back to existing target routing behavior.
+- [x] `Usf.Core` contains no broker-specific routing logic; the routing key is carried through as an opaque `string?` and interpreted only by transport implementations.
+- [x] For RabbitMQ typed publishing, a caller routing key that is not null, empty, or whitespace overrides both constant target routing keys and message-derived routing-key factories; when the caller routing key is null, empty, or whitespace, existing target routing behavior is preserved.
+- [x] Existing target-based publishing behavior continues to work when no routing key is provided.
+- [x] Automated tests need to be written.
 
 ## Technical Details
 

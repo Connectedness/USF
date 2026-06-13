@@ -106,7 +106,11 @@ public abstract class OutboundTarget<T> : OutboundTarget
         return MessageContractRegistry.GetDataSchema(runtimeMessageType);
     }
 
-    public Task PublishAsync(T message, CancellationToken cancellationToken = default)
+    public Task PublishAsync(
+        T message,
+        string? routingKey = null,
+        CancellationToken cancellationToken = default
+    )
     {
         if (message is not ICloudEvent cloudEvent)
         {
@@ -117,16 +121,17 @@ public abstract class OutboundTarget<T> : OutboundTarget
         }
 
         var metadata = CloudEventMetadata.From(cloudEvent);
-        return PublishAsync(message, in metadata, cancellationToken);
+        return PublishAsync(message, in metadata, routingKey, cancellationToken);
     }
 
     public Task PublishAsync(
         T message,
         in CloudEventMetadata metadata,
+        string? routingKey = null,
         CancellationToken cancellationToken = default
     )
     {
-        return PublishCoreAsync(message, metadata, type: null, dataSchema: null, cancellationToken);
+        return PublishCoreAsync(message, metadata, type: null, dataSchema: null, routingKey, cancellationToken);
     }
 
     public Task PublishAsync(
@@ -134,10 +139,11 @@ public abstract class OutboundTarget<T> : OutboundTarget
         in CloudEventMetadata metadata,
         string type,
         string? dataSchema,
-        CancellationToken cancellationToken
+        string? routingKey = null,
+        CancellationToken cancellationToken = default
     )
     {
-        return PublishCoreAsync(message, metadata, type, dataSchema, cancellationToken);
+        return PublishCoreAsync(message, metadata, type, dataSchema, routingKey, cancellationToken);
     }
 
     private async Task PublishCoreAsync(
@@ -145,6 +151,7 @@ public abstract class OutboundTarget<T> : OutboundTarget
         CloudEventMetadata metadata,
         string? type,
         string? dataSchema,
+        string? routingKey,
         CancellationToken cancellationToken
     )
     {
@@ -175,12 +182,13 @@ public abstract class OutboundTarget<T> : OutboundTarget
             throw new MessageSerializationException(runtimeType, exception);
         }
 
-        await PublishTypedCloudEventAsync(message, envelope, cancellationToken).ConfigureAwait(false);
+        await PublishTypedCloudEventAsync(message, envelope, routingKey, cancellationToken).ConfigureAwait(false);
     }
 
     protected abstract Task PublishTypedCloudEventAsync(
         T message,
         CloudEventEnvelope envelope,
+        string? routingKey,
         CancellationToken cancellationToken
     );
 }

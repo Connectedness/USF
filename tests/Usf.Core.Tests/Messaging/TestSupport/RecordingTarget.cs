@@ -22,6 +22,8 @@ public sealed class RecordingTarget<TMessage> : OutboundTarget<TMessage>
 
     public List<CloudEventEnvelope> CloudEventEnvelopes { get; } = [];
 
+    public List<string?> RoutingKeys { get; } = [];
+
     public List<SerializedMessage> SerializedMessages { get; } = [];
 
     public override Task PublishSerializedAsync(
@@ -36,11 +38,13 @@ public sealed class RecordingTarget<TMessage> : OutboundTarget<TMessage>
     protected override Task PublishTypedCloudEventAsync(
         TMessage message,
         CloudEventEnvelope envelope,
+        string? routingKey,
         CancellationToken cancellationToken
     )
     {
         Messages.Add(message);
         CloudEventEnvelopes.Add(envelope);
+        RoutingKeys.Add(routingKey);
         return Task.CompletedTask;
     }
 }

@@ -170,7 +170,7 @@ public sealed class RabbitMqPublishingIntegrationTests
             await publisher.PublishMessageAsync(
                 new RabbitMqPublishMessage(43, "topic"),
                 targetRegistry.GetRequiredTarget("topic-target"),
-                cancellationToken
+                cancellationToken: cancellationToken
             );
             await publisher.PublishMessageAsync(
                 new RabbitMqAuditMessage(1042, "audit"),
@@ -179,17 +179,17 @@ public sealed class RabbitMqPublishingIntegrationTests
             await publisher.PublishMessageAsync(
                 new RabbitMqPublishMessage(44, "fanout"),
                 targetRegistry.GetRequiredTarget("fanout-target"),
-                cancellationToken
+                cancellationToken: cancellationToken
             );
             await publisher.PublishMessageAsync(
                 new RabbitMqPublishMessage(45, "headers"),
                 targetRegistry.GetRequiredTarget("headers-target"),
-                cancellationToken
+                cancellationToken: cancellationToken
             );
             await publisher.PublishMessageAsync(
                 new RabbitMqPublishMessage(46, "exchange"),
                 targetRegistry.GetRequiredTarget("exchange-binding-target"),
-                cancellationToken
+                cancellationToken: cancellationToken
             );
 
             var connectionFactory = new ConnectionFactory

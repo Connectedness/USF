@@ -36,7 +36,7 @@ public class TopologyPublisherMemoryBenchmark
     [Benchmark(Baseline = true)]
     public Task DefaultPublish()
     {
-        return _publisher.PublishMessageAsync(_message, _target, CancellationToken.None);
+        return _publisher.PublishMessageAsync(_message, _target, cancellationToken: CancellationToken.None);
     }
 
     [Benchmark]
@@ -44,7 +44,7 @@ public class TopologyPublisherMemoryBenchmark
     {
         return _publisher
            .ForTopology(NamedTopology)
-           .PublishMessageAsync(_message, _target, CancellationToken.None);
+           .PublishMessageAsync(_message, _target, cancellationToken: CancellationToken.None);
     }
 
     private sealed record BenchmarkMessage(string Value) : ICloudEvent
@@ -72,6 +72,7 @@ public class TopologyPublisherMemoryBenchmark
         protected override Task PublishTypedCloudEventAsync(
             BenchmarkMessage message,
             CloudEventEnvelope envelope,
+            string? routingKey,
             CancellationToken cancellationToken
         )
         {
