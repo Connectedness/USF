@@ -10,6 +10,27 @@ namespace Usf.Transport.RabbitMq;
 
 public sealed class RabbitMqTransportMessage : TransportMessage
 {
+    private static readonly IReadOnlyDictionary<string, object?> EmptyHeaders =
+        new ReadOnlyDictionary<string, object?>(new Dictionary<string, object?>());
+
+    /// <summary>
+    /// Initializes a RabbitMQ transport message.
+    /// </summary>
+    /// <param name="queueName">The source queue name.</param>
+    /// <param name="consumerTag">The RabbitMQ consumer tag.</param>
+    /// <param name="deliveryTag">The RabbitMQ delivery tag.</param>
+    /// <param name="redelivered">Whether RabbitMQ reports this message as redelivered.</param>
+    /// <param name="exchange">The source exchange.</param>
+    /// <param name="routingKey">The delivery routing key.</param>
+    /// <param name="basicProperties">The RabbitMQ basic properties.</param>
+    /// <param name="body">The RabbitMQ delivery body.</param>
+    /// <param name="copyBody">
+    /// <see langword="true" /> to copy the body into message-owned memory; <see langword="false" /> to reference
+    /// RabbitMQ.Client's pooled delivery buffer. When <see langword="false" />, the body and values derived from it
+    /// without copying are valid only until the message handler completes. The message must not be retained and
+    /// processing must not be offloaded past the handler's lifetime; violations read reused buffer contents rather
+    /// than throwing.
+    /// </param>
     public RabbitMqTransportMessage(
         string queueName,
         string consumerTag,
@@ -18,13 +39,14 @@ public sealed class RabbitMqTransportMessage : TransportMessage
         string exchange,
         string routingKey,
         IReadOnlyBasicProperties basicProperties,
-        ReadOnlyMemory<byte> body
+        ReadOnlyMemory<byte> body,
+        bool copyBody = true
     )
         : base(
             "rabbitmq",
             queueName,
-            body.ToArray(),
-            CopyHeaders(basicProperties),
+            copyBody ? body.ToArray() : body,
+            GetHeaders(basicProperties),
             GetPropertyValue(
                 basicProperties,
                 static properties => properties.IsContentTypePresent(),
@@ -124,26 +146,23 @@ public sealed class RabbitMqTransportMessage : TransportMessage
         return TimeSpan.FromMilliseconds(milliseconds);
     }
 
-    private static IReadOnlyDictionary<string, object?> CopyHeaders(IReadOnlyBasicProperties basicProperties)
+    private static IReadOnlyDictionary<string, object?> GetHeaders(IReadOnlyBasicProperties basicProperties)
     {
         if (!basicProperties.IsHeadersPresent() || basicProperties.Headers is null)
         {
-            return new ReadOnlyDictionary<string, object?>(new Dictionary<string, object?>(0, StringComparer.Ordinal));
+            return EmptyHeaders;
         }
 
-        Dictionary<string, object?> headers = new (basicProperties.Headers.Count, StringComparer.Ordinal);
-
-        foreach (var header in basicProperties.Headers)
-        {
-            headers[header.Key] = header.Value;
-        }
-
-        return new ReadOnlyDictionary<string, object?>(headers);
+        return basicProperties.Headers as IReadOnlyDictionary<string, object?> ??
+               new ReadOnlyDictionary<string, object?>(basicProperties.Headers);
     }
 
     private static uint GetDeliveryAttempt(IReadOnlyBasicProperties basicProperties, bool redelivered)
     {
-        var headers = CopyHeaders(basicProperties);
+        if (!basicProperties.IsHeadersPresent() || basicProperties.Headers is not { } headers)
+        {
+            return redelivered ? 2u : 1u;
+        }
 
         if (TryGetUnsignedHeader(headers, "x-delivery-count", out var deliveryCount))
         {
@@ -160,7 +179,7 @@ public sealed class RabbitMqTransportMessage : TransportMessage
     }
 
     private static bool TryGetUnsignedHeader(
-        IReadOnlyDictionary<string, object?> headers,
+        IDictionary<string, object?> headers,
         string name,
         out uint value
     )

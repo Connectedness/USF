@@ -224,7 +224,8 @@ public sealed class RabbitMqTopologyRuntime : ITopologyRuntime
             eventArgs.Exchange,
             eventArgs.RoutingKey,
             eventArgs.BasicProperties,
-            eventArgs.Body
+            eventArgs.Body,
+            subscribedEndpoint.CopyBody
         );
 
         try

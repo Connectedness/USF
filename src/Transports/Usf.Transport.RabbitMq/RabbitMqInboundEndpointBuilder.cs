@@ -13,6 +13,7 @@ public sealed class RabbitMqInboundEndpointBuilder
     private int _channelCount = 1;
     private string? _channelGroupName;
     private ushort _consumerDispatchConcurrency = 1;
+    private bool _copyBody = true;
     private Type _inspectorType = typeof(CloudEventsInboundMessageInspector);
     private ushort _prefetchCount = 1;
     private Type _serializerType = typeof(CloudEventMessageSerializer);
@@ -104,6 +105,21 @@ public sealed class RabbitMqInboundEndpointBuilder
     }
 
     /// <summary>
+    /// Uses RabbitMQ.Client's pooled delivery buffer directly instead of copying the message body.
+    /// </summary>
+    /// <remarks>
+    /// The transport message body and any value derived from it without copying, including
+    /// <see cref="CloudEventEnvelope.Data" />, are valid only until the message handler completes. The message must
+    /// not be retained and processing must not be offloaded past the handler's lifetime. Violations read reused
+    /// buffer contents rather than throwing. All handlers for the same queue must use the same setting.
+    /// </remarks>
+    public RabbitMqInboundEndpointBuilder ZeroCopyBody()
+    {
+        _copyBody = false;
+        return this;
+    }
+
+    /// <summary>
     /// Adds a handler for <typeparamref name="TMessage" />. The concrete <typeparamref name="THandler" /> type is
     /// auto-registered as scoped and resolved from the per-delivery scope. Register the concrete handler type before
     /// calling <c>AddRabbitMq*Topology</c> to choose a different lifetime; auto-registration yields to an existing
@@ -145,6 +161,7 @@ public sealed class RabbitMqInboundEndpointBuilder
                 _channelCount,
                 _prefetchCount,
                 _consumerDispatchConcurrency,
+                _copyBody,
                 _ackMode
             )
         );

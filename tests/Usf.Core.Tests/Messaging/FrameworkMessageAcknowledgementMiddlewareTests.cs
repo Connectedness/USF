@@ -125,7 +125,7 @@ public sealed class FrameworkMessageAcknowledgementMiddlewareTests
             : base(
                 "test",
                 "source",
-                [],
+                ReadOnlyMemory<byte>.Empty,
                 new Dictionary<string, object?>()
             ) { }
     }

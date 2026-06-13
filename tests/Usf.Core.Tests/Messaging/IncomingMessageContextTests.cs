@@ -68,7 +68,7 @@ public sealed class IncomingMessageContextTests
             : base(
                 "test",
                 "source",
-                [],
+                ReadOnlyMemory<byte>.Empty,
                 new Dictionary<string, object?>()
             ) { }
     }

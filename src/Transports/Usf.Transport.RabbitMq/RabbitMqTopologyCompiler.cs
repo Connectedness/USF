@@ -516,6 +516,7 @@ public sealed class RabbitMqTopologyCompiler
             handlerDefinition.HandlerInvocation,
             handlerDefinition.AckMode,
             handlerDefinition.QueueName,
+            handlerDefinition.CopyBody,
             handlerDefinition.InspectorType,
             channelGroup
         );
@@ -1075,6 +1076,16 @@ public sealed class RabbitMqTopologyCompiler
     {
         Dictionary<string, RabbitMqInboundHandlerDefinition> endpointNames = new (StringComparer.Ordinal);
         HashSet<InboundEndpointSelectionKey> dispatchKeys = new (InboundEndpointSelectionKeyComparer.Instance);
+
+        foreach (var handlersForQueue in handlers.GroupBy(static handler => handler.QueueName, StringComparer.Ordinal))
+        {
+            if (handlersForQueue.Select(static handler => handler.CopyBody).Distinct().Skip(1).Any())
+            {
+                validationErrors.Add(
+                    $"Inbound endpoints for queue '{handlersForQueue.Key}' disagree on zero-copy body configuration. All handlers for a queue must use the same setting."
+                );
+            }
+        }
 
         foreach (var handler in OrderHandlers(handlers))
         {

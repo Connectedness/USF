@@ -39,7 +39,7 @@ public sealed class MessagePublisherTests
 
         target.Messages.Should().ContainSingle().Which.Should().Be(message);
         var envelope = target.CloudEventEnvelopes.Should().ContainSingle().Which;
-        Encoding.UTF8.GetString(envelope.Data).Should().Be("{\"Value\":\"hello\"}");
+        Encoding.UTF8.GetString(envelope.Data.Span).Should().Be("{\"Value\":\"hello\"}");
         envelope.Type.Should().Be(CloudEventsTestFactory.SampleDiscriminator);
         envelope.Source.Should().Be("/tests/core");
         envelope.DataContentType.Should().Be("application/json");
@@ -56,7 +56,7 @@ public sealed class MessagePublisherTests
         await publisher.PublishMessageAsync(message, explicitTarget, cancellationToken);
 
         explicitTarget.Messages.Should().ContainSingle().Which.Should().Be(message);
-        Encoding.UTF8.GetString(explicitTarget.CloudEventEnvelopes.Should().ContainSingle().Which.Data)
+        Encoding.UTF8.GetString(explicitTarget.CloudEventEnvelopes.Should().ContainSingle().Which.Data.Span)
            .Should()
            .Be("{\"Value\":\"hello\"}");
     }

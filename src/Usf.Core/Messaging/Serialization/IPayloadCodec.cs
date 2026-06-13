@@ -9,5 +9,5 @@ public interface IPayloadCodec
 {
     EncodedPayload Encode<T>(T message);
 
-    object? Decode(byte[] data, Type messageType);
+    object? Decode(ReadOnlyMemory<byte> data, Type messageType);
 }

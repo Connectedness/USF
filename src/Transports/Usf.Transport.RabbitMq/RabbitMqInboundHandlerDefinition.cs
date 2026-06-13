@@ -15,5 +15,6 @@ public sealed record RabbitMqInboundHandlerDefinition(
     int ChannelCount,
     ushort PrefetchCount,
     ushort ConsumerDispatchConcurrency,
+    bool CopyBody,
     MessageAckMode AckMode
 );

@@ -108,7 +108,7 @@ public sealed class MessageHandlerInvocationTests
     private sealed class TestTransportMessage : TransportMessage
     {
         public TestTransportMessage()
-            : base("test", "source", [], new Dictionary<string, object?>()) { }
+            : base("test", "source", ReadOnlyMemory<byte>.Empty, new Dictionary<string, object?>()) { }
     }
 
     private sealed class NoOpAcknowledgement : IMessageAcknowledgement

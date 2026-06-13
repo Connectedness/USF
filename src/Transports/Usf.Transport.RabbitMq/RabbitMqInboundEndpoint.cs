@@ -15,6 +15,7 @@ public abstract class RabbitMqInboundEndpoint : InboundEndpoint
         MessageDelegate handlerInvocation,
         MessageAckMode ackMode,
         string queueName,
+        bool copyBody,
         Type inspectorType,
         RabbitMqInboundChannelGroup channelGroup
     )
@@ -31,6 +32,7 @@ public abstract class RabbitMqInboundEndpoint : InboundEndpoint
         )
     {
         QueueName = RequireText(queueName, nameof(queueName));
+        CopyBody = copyBody;
         InspectorType = inspectorType ?? throw new ArgumentNullException(nameof(inspectorType));
         ChannelGroup = channelGroup ?? throw new ArgumentNullException(nameof(channelGroup));
 
@@ -44,6 +46,8 @@ public abstract class RabbitMqInboundEndpoint : InboundEndpoint
     }
 
     public string QueueName { get; }
+
+    public bool CopyBody { get; }
 
     public Type InspectorType { get; }
 
@@ -71,6 +75,7 @@ public sealed class RabbitMqInboundEndpoint<TMessage> : RabbitMqInboundEndpoint
         MessageDelegate handlerInvocation,
         MessageAckMode ackMode,
         string queueName,
+        bool copyBody,
         Type inspectorType,
         RabbitMqInboundChannelGroup channelGroup
     )
@@ -84,6 +89,7 @@ public sealed class RabbitMqInboundEndpoint<TMessage> : RabbitMqInboundEndpoint
             handlerInvocation,
             ackMode,
             queueName,
+            copyBody,
             inspectorType,
             channelGroup
         )

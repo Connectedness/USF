@@ -21,7 +21,8 @@ public sealed class AddRabbitMqConsumeTopologyTests
     public void AddRabbitMqTopology_SupportsOneTopologyWithOutboundTargetsAndInboundEndpoints()
     {
         var services = new ServiceCollection();
-        services.AddTestCloudEvents()
+        services
+           .AddTestCloudEvents()
            .AddRabbitMqTopology(
                 builder =>
                 {
@@ -42,7 +43,8 @@ public sealed class AddRabbitMqConsumeTopologyTests
             );
         using var serviceProvider = services.BuildServiceProvider();
 
-        serviceProvider.GetRequiredService<ITopologyRegistry>()
+        serviceProvider
+           .GetRequiredService<ITopologyRegistry>()
            .Names.Should().ContainSingle().Which.Should().Be(Topology.DefaultName);
         var topology = serviceProvider.GetRequiredService<Topology>();
         var keyedTopology = serviceProvider.GetRequiredKeyedService<Topology>(Topology.DefaultName);
@@ -72,7 +74,8 @@ public sealed class AddRabbitMqConsumeTopologyTests
 
         var action = () => builder.AddRabbitMqTopology("shared", static _ => { });
 
-        action.Should().Throw<InvalidOperationException>()
+        action
+           .Should().Throw<InvalidOperationException>()
            .WithMessage("Topology 'shared' is already registered. Registered topologies: shared.");
     }
 
@@ -82,7 +85,8 @@ public sealed class AddRabbitMqConsumeTopologyTests
         const string firstTopologyName = "first";
         const string secondTopologyName = "second";
         var services = new ServiceCollection();
-        services.AddTestCloudEvents()
+        services
+           .AddTestCloudEvents()
            .AddRabbitMqTopology(
                 firstTopologyName,
                 builder =>
@@ -112,10 +116,12 @@ public sealed class AddRabbitMqConsumeTopologyTests
         var registry = serviceProvider.GetRequiredService<ITopologyRegistry>();
 
         registry.Names.Should().BeEquivalentTo(firstTopologyName, secondTopologyName);
-        registry.GetRequiredTopology(firstTopologyName)
+        registry
+           .GetRequiredTopology(firstTopologyName)
            .InboundEndpoints.Should().ContainSingle()
            .Which.MessageType.Should().Be(typeof(ValidationMessageA));
-        registry.GetRequiredTopology(secondTopologyName)
+        registry
+           .GetRequiredTopology(secondTopologyName)
            .InboundEndpoints.Should().ContainSingle()
            .Which.MessageType.Should().Be(typeof(ValidationMessageB));
     }
@@ -348,6 +354,62 @@ public sealed class AddRabbitMqConsumeTopologyTests
         endpoint.ChannelGroup.MaximumChannelCount.Should().Be(3);
         endpoint.ChannelGroup.PrefetchCount.Should().Be(7);
         endpoint.ChannelGroup.ConsumerDispatchConcurrency.Should().Be(2);
+        endpoint.CopyBody.Should().BeTrue();
+    }
+
+    [Fact]
+    public void AddRabbitMqTopology_AppliesZeroCopyBodyToEndpoint()
+    {
+        var services = new ServiceCollection();
+        services.AddTestCloudEvents()
+           .AddRabbitMqTopology(
+                builder =>
+                {
+                    builder.UseConnectionFactory(static _ => new ConnectionFactory());
+                    builder.Queue("inbound");
+                    builder.Consume(
+                        "inbound",
+                        endpoint => endpoint
+                           .ZeroCopyBody()
+                           .Handle<ValidationMessageA, ValidationMessageAHandler>()
+                    );
+                }
+            );
+        using var serviceProvider = services.BuildServiceProvider();
+
+        var endpoint = serviceProvider.GetRequiredService<RabbitMqTopology>()
+           .Endpoints.Should().ContainSingle().Which;
+
+        endpoint.CopyBody.Should().BeFalse();
+    }
+
+    [Fact]
+    public void Compile_RejectsMixedZeroCopySettingsForSameQueue()
+    {
+        var services = new ServiceCollection();
+        services.AddTestCloudEvents()
+           .AddRabbitMqTopology(
+                builder =>
+                {
+                    builder.UseConnectionFactory(static _ => new ConnectionFactory());
+                    builder.Queue("inbound");
+                    builder.Consume(
+                        "inbound",
+                        endpoint => endpoint
+                           .Handle<ValidationMessageA, ValidationMessageAHandler>()
+                           .ZeroCopyBody()
+                           .Handle<ValidationMessageB, ValidationMessageBHandler>()
+                    );
+                }
+            );
+        using var serviceProvider = services.BuildServiceProvider();
+
+        Action action = () => _ = serviceProvider.GetRequiredService<RabbitMqTopology>();
+
+        var exception = action.Should().Throw<TopologyValidationException>().Which;
+        exception.ValidationErrors.Should().Contain(
+            "Inbound endpoints for queue 'inbound' disagree on zero-copy body configuration. All handlers for a queue must use the same setting."
+        );
     }
 
     [Fact]
@@ -537,7 +599,7 @@ public sealed class AddRabbitMqConsumeTopologyTests
     private sealed class TestTransportMessage : TransportMessage
     {
         public TestTransportMessage()
-            : base("test", "source", [], new Dictionary<string, object?>()) { }
+            : base("test", "source", ReadOnlyMemory<byte>.Empty, new Dictionary<string, object?>()) { }
     }
 
     private sealed class NoOpAcknowledgement : IMessageAcknowledgement
