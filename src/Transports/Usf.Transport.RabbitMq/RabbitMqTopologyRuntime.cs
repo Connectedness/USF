@@ -216,6 +216,13 @@ public sealed class RabbitMqTopologyRuntime : ITopologyRuntime
             stoppingToken
         );
         var cancellationToken = linkedCancellationTokenSource.Token;
+
+        // The zero-copy body opt-in (CopyBody == false) aliases RabbitMQ.Client's pooled delivery buffer, which the
+        // client only keeps valid for the duration of this delivery callback. The opt-in is therefore only sound
+        // because we fully await the entire processing pipeline below before returning: the transport message and its
+        // body never outlive this method. Any future change that offloads delivery past this callback (e.g. queuing
+        // eventArgs to a background worker pool) would silently corrupt every zero-copy endpoint and must instead force
+        // a copy or reject zero-copy endpoints at topology compilation.
         var transportMessage = new RabbitMqTransportMessage(
             subscribedEndpoint.QueueName,
             eventArgs.ConsumerTag,
