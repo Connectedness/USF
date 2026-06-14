@@ -85,14 +85,18 @@ public sealed class MessageContractRegistry : IMessageContractRegistry
         return _dataSchemasByMessageType.TryGetValue(messageType, out var dataSchema) ? dataSchema : null;
     }
 
-    public bool TryGetDataSchema(Type messageType, out string? dataSchema)
+    public IReadOnlyCollection<string> GetInboundDiscriminators(Type messageType)
     {
         if (messageType is null)
         {
             throw new ArgumentNullException(nameof(messageType));
         }
 
-        return _dataSchemasByMessageType.TryGetValue(messageType, out dataSchema);
+        return _messageTypesByDiscriminator
+           .Where(pair => pair.Value == messageType)
+           .Select(static pair => pair.Key)
+           .OrderBy(static discriminator => discriminator, StringComparer.Ordinal)
+           .ToArray();
     }
 
     public bool TryResolveType(string discriminator, out Type? messageType)
@@ -103,5 +107,15 @@ public sealed class MessageContractRegistry : IMessageContractRegistry
         }
 
         return _messageTypesByDiscriminator.TryGetValue(discriminator, out messageType);
+    }
+
+    public bool TryGetDataSchema(Type messageType, out string? dataSchema)
+    {
+        if (messageType is null)
+        {
+            throw new ArgumentNullException(nameof(messageType));
+        }
+
+        return _dataSchemasByMessageType.TryGetValue(messageType, out dataSchema);
     }
 }

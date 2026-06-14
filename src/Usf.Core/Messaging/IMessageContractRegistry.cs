@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 namespace Usf.Core.Messaging;
 
@@ -17,6 +18,8 @@ public interface IMessageContractRegistry
     bool TryGetDiscriminator(Type messageType, out string? discriminator);
 
     string? GetDataSchema(Type messageType);
+
+    IReadOnlyCollection<string> GetInboundDiscriminators(Type messageType);
 
     bool TryResolveType(string discriminator, out Type? messageType);
 }

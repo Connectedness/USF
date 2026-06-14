@@ -129,6 +129,18 @@ public sealed class Utf8JsonPayloadCodecTests
         action.Should().Throw<ArgumentNullException>().WithParameterName("message");
     }
 
+    [Fact]
+    public void Decode_DeserializesFromReadOnlyMemorySlice()
+    {
+        var codec = new Utf8JsonPayloadCodec(Utf8JsonPayloadCodecContext.Default.Options);
+        var paddedJson = "x{\"Text\":\"Hello\",\"Count\":7}y"u8.ToArray();
+        ReadOnlyMemory<byte> json = paddedJson.AsMemory(1, paddedJson.Length - 2);
+
+        var message = codec.Decode(json, typeof(SerializerExactMessage));
+
+        message.Should().Be(new SerializerExactMessage("Hello", 7));
+    }
+
     private static string GetJson(EncodedPayload encodedPayload)
     {
         return Encoding.UTF8.GetString(encodedPayload.Data);

@@ -108,9 +108,9 @@ public sealed class RabbitMqOutboundTargetBuilder<TMessage>
     /// Mandatory routing requires publisher confirmations on the target's effective channel group so the
     /// returned message can be correlated with its publish. A mandatory target whose effective group uses
     /// <see cref="Configuration.RabbitMqPublisherConfirmMode.FireAndForget" /> is rejected at compile time
-    /// through <see cref="Usf.Core.Messaging.Errors.OutboundTopologyValidationException" />; select
+    /// through <see cref="Usf.Core.Messaging.Errors.TopologyValidationException" />; select
     /// <see cref="Configuration.RabbitMqPublisherConfirmMode.Confirms" /> on the group (see
-    /// <c>RabbitMqOutboundTopologyBuilder.ChannelGroup</c>) or leave the topology-level default
+    /// <c>RabbitMqTopologyBuilder.ChannelGroup</c>) or leave the topology-level default
     /// (<c>WithDefaultPublisherConfirmMode</c>) on confirms. Confirmation tracking serializes outstanding
     /// publishes per channel while awaiting broker outcomes; increase the channel-group size when relaxed
     /// ordering is acceptable and additional throughput is required.

@@ -7,12 +7,14 @@ namespace Usf.Core.Messaging;
 
 public readonly struct TopologyPublisher
 {
-    private readonly TopologyName _topologyName;
+    private readonly string _topologyName;
 
-    public TopologyPublisher(MessagePublisher router, TopologyName topologyName)
+    public TopologyPublisher(MessagePublisher router, string topologyName)
     {
         Router = router ?? throw new ArgumentNullException(nameof(router));
-        _topologyName = topologyName;
+        _topologyName = !string.IsNullOrWhiteSpace(topologyName) ?
+            topologyName :
+            throw new ArgumentException("The value cannot be null or whitespace.", nameof(topologyName));
     }
 
     public Task PublishMessageAsync<T>(

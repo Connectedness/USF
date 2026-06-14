@@ -17,6 +17,10 @@ public sealed class MessageContractRegistryTests
         var registry = builder.Build();
 
         registry.GetDiscriminator(typeof(RegistryMessage)).Should().Be("registry.current");
+        registry.GetInboundDiscriminators(typeof(RegistryMessage)).Should().Equal(
+            "registry.current",
+            "registry.legacy"
+        );
         registry.TryResolveType("registry.current", out var current).Should().BeTrue();
         current.Should().Be<RegistryMessage>();
         registry.TryResolveType("registry.legacy", out var legacy).Should().BeTrue();
@@ -32,6 +36,7 @@ public sealed class MessageContractRegistryTests
         var registry = builder.Build();
 
         registry.GetDiscriminator(typeof(RegistryMessage)).Should().Be("registry.outbound");
+        registry.GetInboundDiscriminators(typeof(RegistryMessage)).Should().BeEmpty();
         registry.TryResolveType("registry.outbound", out _).Should().BeFalse();
     }
 

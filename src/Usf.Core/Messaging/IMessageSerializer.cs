@@ -1,3 +1,4 @@
+using System;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -20,6 +21,12 @@ public interface IMessageSerializer
         in CloudEventMetadata metadata,
         string? type,
         string? dataSchema,
+        CancellationToken cancellationToken = default
+    );
+
+    ValueTask<object?> DeserializeAsync(
+        CloudEventEnvelope envelope,
+        Type messageType,
         CancellationToken cancellationToken = default
     );
 }

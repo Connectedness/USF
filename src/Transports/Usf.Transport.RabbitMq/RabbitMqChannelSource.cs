@@ -13,8 +13,8 @@ public sealed class RabbitMqChannelSource : IDisposable
     private readonly RabbitMqConnectionProvider _connectionProvider;
     private int _channelBudgetConfigured;
     private int _channelBudgetValidated;
-    private string _worstCaseChannelCountDescription = string.Empty;
     private int _worstCaseChannelCount;
+    private string _worstCaseChannelCountDescription = string.Empty;
 
     public RabbitMqChannelSource(RabbitMqConnectionProvider connectionProvider)
     {
@@ -103,10 +103,10 @@ public sealed class RabbitMqChannelSource : IDisposable
             return;
         }
 
-        throw new OutboundTopologyValidationException(
+        throw new TopologyValidationException(
             new List<string>
             {
-                $"RabbitMQ outbound topology may open up to {_worstCaseChannelCount} channels ({_worstCaseChannelCountDescription}), but the broker negotiated channel_max={connection.ChannelMax}."
+                $"RabbitMQ topology may open up to {_worstCaseChannelCount} channels ({_worstCaseChannelCountDescription}), but the broker negotiated channel_max={connection.ChannelMax}."
             }
         );
     }

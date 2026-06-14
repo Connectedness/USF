@@ -11,8 +11,8 @@ public sealed class CloudEventEnvelopeTests
     [Fact]
     public void Equals_ComparesDataByItem()
     {
-        var left = CreateEnvelope(data: [1, 2, 3]);
-        var right = CreateEnvelope(data: [1, 2, 3]);
+        var left = CreateEnvelope(data: new byte[] { 1, 2, 3 });
+        var right = CreateEnvelope(data: new byte[] { 1, 2, 3 });
 
         left.Should().Be(right);
     }
@@ -42,11 +42,11 @@ public sealed class CloudEventEnvelopeTests
     public void Equals_DetectsItemDifferences()
     {
         var left = CreateEnvelope(
-            data: [1, 2, 3],
+            data: new byte[] { 1, 2, 3 },
             extensions: new Dictionary<string, string?> { ["alpha"] = "one" }
         );
         var right = CreateEnvelope(
-            data: [1, 2, 4],
+            data: new byte[] { 1, 2, 4 },
             extensions: new Dictionary<string, string?> { ["alpha"] = "two" }
         );
 
@@ -57,11 +57,11 @@ public sealed class CloudEventEnvelopeTests
     public void GetHashCode_CreatesSameHashCodeForEqualEnvelopes()
     {
         var left = CreateEnvelope(
-            data: [5, 2, 8, 42, 9],
+            data: new byte[] { 5, 2, 8, 42, 9 },
             extensions: new Dictionary<string, string?> { ["foo"] = "bar", ["baz"] = "quz" }
         );
         var right = CreateEnvelope(
-            data: [5, 2, 8, 42, 9],
+            data: new byte[] { 5, 2, 8, 42, 9 },
             extensions: new Dictionary<string, string?> { ["foo"] = "bar", ["baz"] = "quz" }
         );
 
@@ -69,7 +69,7 @@ public sealed class CloudEventEnvelopeTests
     }
 
     private static CloudEventEnvelope CreateEnvelope(
-        byte[]? data = null,
+        ReadOnlyMemory<byte>? data = null,
         IReadOnlyDictionary<string, string?>? extensions = null
     )
     {
@@ -82,7 +82,7 @@ public sealed class CloudEventEnvelopeTests
             "subject-7",
             "application/octet-stream",
             "/schemas/envelope",
-            data ?? [1, 2, 3],
+            data ?? new ReadOnlyMemory<byte>([1, 2, 3]),
             extensions
         );
     }

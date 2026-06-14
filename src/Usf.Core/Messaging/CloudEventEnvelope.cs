@@ -21,6 +21,6 @@ public readonly partial record struct CloudEventEnvelope(
     string? Subject,
     string DataContentType,
     string? DataSchema,
-    [property: OrderedEquality] byte[] Data,
+    [property: CustomEquality(typeof(ReadOnlyMemoryByteEqualityComparer))] ReadOnlyMemory<byte> Data,
     [property: UnorderedEquality] IReadOnlyDictionary<string, string?>? Extensions = null
 );

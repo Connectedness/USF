@@ -6,7 +6,7 @@ namespace Usf.Core.Messaging;
 
 public interface IMessagePublisher
 {
-    TopologyPublisher ForTopology(TopologyName topologyName);
+    TopologyPublisher ForTopology(string topologyName);
 
     Task PublishMessageAsync<T>(
         T message,

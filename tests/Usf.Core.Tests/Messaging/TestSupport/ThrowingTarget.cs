@@ -17,7 +17,7 @@ public sealed class ThrowingTarget<TMessage> : OutboundTarget<TMessage>
         IMessageSerializer serializer,
         IMessageContractRegistry messageContractRegistry,
         Exception exception,
-        TopologyName? topologyName = null
+        string? topologyName = null
     )
         : base(name, "test", serializer, messageContractRegistry, topologyName)
     {

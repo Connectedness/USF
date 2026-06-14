@@ -8,7 +8,7 @@ namespace Usf.Core.Messaging;
 
 public abstract class OutboundTarget
 {
-    protected OutboundTarget(string name, string transportName, TopologyName? topologyName = null)
+    protected OutboundTarget(string name, string transportName, string? topologyName = null)
     {
         if (string.IsNullOrWhiteSpace(name))
         {
@@ -20,16 +20,21 @@ public abstract class OutboundTarget
             throw new ArgumentException("The value cannot be null or whitespace.", nameof(transportName));
         }
 
+        if (topologyName is not null && string.IsNullOrWhiteSpace(topologyName))
+        {
+            throw new ArgumentException("The value cannot be null or whitespace.", nameof(topologyName));
+        }
+
         Name = name;
         TransportName = transportName;
-        TopologyName = topologyName ?? TopologyName.Default;
+        TopologyName = topologyName ?? Topology.DefaultName;
     }
 
     public virtual Type? MessageType => null;
 
     public string Name { get; }
 
-    public TopologyName TopologyName { get; }
+    public string TopologyName { get; }
 
     public string TransportName { get; }
 
@@ -56,7 +61,7 @@ public abstract class OutboundTarget<T> : OutboundTarget
         string transportName,
         IMessageSerializer serializer,
         IMessageContractRegistry messageContractRegistry,
-        TopologyName? topologyName = null
+        string? topologyName = null
     )
         : base(name, transportName, topologyName)
     {

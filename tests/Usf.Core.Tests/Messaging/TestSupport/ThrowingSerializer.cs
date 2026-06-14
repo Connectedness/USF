@@ -24,4 +24,13 @@ public sealed class ThrowingSerializer : IMessageSerializer
     {
         throw _exception;
     }
+
+    public ValueTask<object?> DeserializeAsync(
+        CloudEventEnvelope envelope,
+        Type messageType,
+        CancellationToken cancellationToken = default
+    )
+    {
+        throw _exception;
+    }
 }

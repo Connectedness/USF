@@ -14,7 +14,7 @@ public sealed class RecordingTarget<TMessage> : OutboundTarget<TMessage>
         string name,
         IMessageSerializer serializer,
         IMessageContractRegistry messageContractRegistry,
-        TopologyName? topologyName = null
+        string? topologyName = null
     )
         : base(name, "test", serializer, messageContractRegistry, topologyName) { }
 

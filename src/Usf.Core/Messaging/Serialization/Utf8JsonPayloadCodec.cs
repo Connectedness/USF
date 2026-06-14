@@ -36,6 +36,16 @@ public sealed class Utf8JsonPayloadCodec : IPayloadCodec
         return new EncodedPayload(utf8Bytes, "application/json");
     }
 
+    public object? Decode(ReadOnlyMemory<byte> data, Type messageType)
+    {
+        if (messageType is null)
+        {
+            throw new ArgumentNullException(nameof(messageType));
+        }
+
+        return JsonSerializer.Deserialize(data.Span, GetRequiredTypeInfo(messageType));
+    }
+
     private JsonTypeInfo GetRequiredTypeInfo(Type type)
     {
         if (_serializerOptions.TryGetTypeInfo(type, out var typeInfo))
