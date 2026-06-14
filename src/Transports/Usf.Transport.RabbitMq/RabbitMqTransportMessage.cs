@@ -11,7 +11,7 @@ namespace Usf.Transport.RabbitMq;
 public sealed class RabbitMqTransportMessage : TransportMessage
 {
     private static readonly IReadOnlyDictionary<string, object?> EmptyHeaders =
-        new ReadOnlyDictionary<string, object?>(new Dictionary<string, object?>());
+        new Dictionary<string, object?>(StringComparer.Ordinal);
 
     /// <summary>
     /// Initializes a RabbitMQ transport message.
