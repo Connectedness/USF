@@ -8,7 +8,7 @@ namespace Usf.Core.Messaging;
 public abstract class TransportMessage
 {
     /// <summary>
-    /// Initializes a transport message and takes ownership of its body and headers.
+    /// Initializes a new instance of <see cref="TransportMessage" />.
     /// </summary>
     /// <param name="transportName">The transport name.</param>
     /// <param name="source">The transport-specific source.</param>
